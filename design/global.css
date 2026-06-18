@@ -183,6 +183,153 @@ body {
 }
 @keyframes spinner-rotate { to { transform: rotate(360deg); } }
 
+/* ---------- Switch (MD3) ---------- */
+.switch {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 24px;
+  border-radius: var(--radius-pill);
+  border: 2px solid var(--color-outline);
+  background: var(--color-surface-highest);
+  cursor: pointer;
+  transition: background-color var(--motion-base) var(--motion-easing),
+    border-color var(--motion-base) var(--motion-easing);
+  padding: 0;
+}
+.switch__thumb {
+  position: absolute;
+  top: 50%;
+  left: 4px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--color-outline);
+  transform: translate(0, -50%);
+  transition: transform var(--motion-base) var(--motion-emphasized),
+    width var(--motion-base) var(--motion-emphasized),
+    height var(--motion-base) var(--motion-emphasized),
+    background-color var(--motion-base) var(--motion-easing);
+}
+.switch[aria-checked='true'] {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+.switch[aria-checked='true'] .switch__thumb {
+  width: 16px;
+  height: 16px;
+  background: var(--color-on-primary);
+  transform: translate(18px, -50%);
+}
+.switch:disabled { opacity: 0.5; cursor: default; }
+
+/* ---------- Text field (filled, slim) ---------- */
+.field { display: flex; flex-direction: column; gap: var(--space-xxs); }
+.field__label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  color: var(--color-on-surface-variant);
+}
+.field__input {
+  font: inherit;
+  color: var(--color-on-surface);
+  background: var(--color-surface-low);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  outline: none;
+  transition: border-color var(--motion-fast) var(--motion-easing),
+    box-shadow var(--motion-fast) var(--motion-easing);
+}
+.field__input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+.field__input::placeholder { color: var(--color-outline); }
+select.field__input { cursor: pointer; appearance: none; }
+
+/* ---------- Icon button ---------- */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: color var(--motion-fast) var(--motion-easing);
+}
+.icon-btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: currentColor;
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--motion-easing);
+}
+.icon-btn:hover::after { opacity: var(--state-hover); }
+.icon-btn:active::after { opacity: var(--state-pressed); }
+.icon-btn:disabled { opacity: 0.4; pointer-events: none; }
+
+/* ---------- Chip ---------- */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+.chip--neutral { background: var(--color-surface-high); color: var(--color-on-surface-variant); }
+.chip--success { background: var(--color-success-container); color: var(--color-on-success-container); }
+.chip--error { background: var(--color-error-container); color: var(--color-on-error-container); }
+
+/* ---------- List row ---------- */
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md) 0;
+}
+.row + .row { border-top: 1px solid var(--color-outline-variant); }
+.row--dim { opacity: 0.55; }
+.row__grow { flex: 1 1 auto; min-width: 0; }
+.row__ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- Banner (Phase 2 / inline messages) ---------- */
+.banner {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+}
+.banner--error { background: var(--color-error-container); color: var(--color-on-error-container); }
+.banner--info { background: var(--color-primary-container); color: var(--color-on-primary-container); }
+
+/* fade/slide-in for panel content */
+.enter {
+  animation: enter var(--motion-base) var(--motion-easing) both;
+}
+@keyframes enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
 /* honor user preference */
 @media (prefers-reduced-motion: reduce) {
   *,
