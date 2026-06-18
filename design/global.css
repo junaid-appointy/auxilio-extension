@@ -1,0 +1,195 @@
+/* Design system for the side panel document. CSS custom properties mirror
+   design/tokens.ts. Component classes below are intentionally small wrappers
+   over Material 3 values — no UI framework. */
+
+:root {
+  /* color roles */
+  --color-primary: #92288e;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #f8d9f5;
+  --color-on-primary-container: #310031;
+
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #410002;
+
+  --color-success: #3f6212;
+  --color-success-container: #dcf2bc;
+  --color-on-success-container: #142000;
+
+  --color-background: #fbf7fa;
+  --color-on-background: #1e1a1d;
+  --color-surface: #fbf7fa;
+  --color-on-surface: #1e1a1d;
+
+  --color-surface-lowest: #ffffff;
+  --color-surface-low: #f5eff3;
+  --color-surface-container: #efe8ee;
+  --color-surface-high: #e9e2e8;
+  --color-surface-highest: #e3dde2;
+
+  --color-on-surface-variant: #4d444b;
+  --color-outline: #7c747a;
+  --color-outline-variant: #cdc4cb;
+  --color-scrim: rgba(0, 0, 0, 0.45);
+
+  /* state layer opacities (MD3) */
+  --state-hover: 0.08;
+  --state-focus: 0.12;
+  --state-pressed: 0.12;
+
+  /* spacing */
+  --space-xxs: 2px;
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --space-xxl: 32px;
+
+  /* shape */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-pill: 999px;
+
+  /* motion */
+  --motion-fast: 120ms;
+  --motion-base: 200ms;
+  --motion-slow: 320ms;
+  --motion-easing: cubic-bezier(0.2, 0, 0, 1);
+  --motion-emphasized: cubic-bezier(0.3, 0, 0, 1);
+
+  /* elevation */
+  --elev-1: 0 1px 2px rgba(0, 0, 0, 0.08);
+  --elev-2: 0 2px 6px rgba(0, 0, 0, 0.1);
+  --elev-3: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-background);
+  color: var(--color-on-background);
+  font-family: 'Google Sans', 'Roboto', system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  line-height: 20px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* typography helpers */
+.type-headline { font-size: 24px; line-height: 32px; font-weight: 700; }
+.type-title-lg { font-size: 22px; line-height: 28px; font-weight: 600; }
+.type-title { font-size: 16px; line-height: 24px; font-weight: 600; letter-spacing: 0.15px; }
+.type-body-lg { font-size: 15px; line-height: 22px; }
+.type-body { font-size: 14px; line-height: 20px; letter-spacing: 0.25px; }
+.type-label { font-size: 14px; line-height: 20px; font-weight: 600; letter-spacing: 0.1px; }
+.type-label-sm { font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: 0.5px; }
+.text-muted { color: var(--color-on-surface-variant); }
+
+/* scrollbar — slim, unobtrusive */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb {
+  background: var(--color-outline-variant);
+  border-radius: var(--radius-pill);
+}
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ---------- Button ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: 10px 20px;
+  font: inherit;
+  font-weight: 600;
+  letter-spacing: 0.1px;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: box-shadow var(--motion-fast) var(--motion-easing),
+    background-color var(--motion-fast) var(--motion-easing),
+    opacity var(--motion-fast) var(--motion-easing);
+  user-select: none;
+}
+.btn:disabled { opacity: 0.5; cursor: default; pointer-events: none; }
+.btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: currentColor;
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--motion-easing);
+}
+.btn:hover::after { opacity: var(--state-hover); }
+.btn:active::after { opacity: var(--state-pressed); }
+
+.btn--filled { background: var(--color-primary); color: var(--color-on-primary); }
+.btn--filled:hover { box-shadow: var(--elev-1); }
+.btn--tonal { background: var(--color-primary-container); color: var(--color-on-primary-container); }
+.btn--text { background: transparent; color: var(--color-primary); padding: 10px 12px; }
+.btn--danger { background: var(--color-error); color: var(--color-on-error); }
+.btn--block { display: flex; width: 100%; }
+
+/* ---------- Card ---------- */
+.card {
+  background: var(--color-surface-lowest);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+}
+
+/* ---------- Skeleton ---------- */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-high) 25%,
+    var(--color-surface-highest) 37%,
+    var(--color-surface-high) 63%
+  );
+  background-size: 400% 100%;
+  border-radius: var(--radius-sm);
+  animation: skeleton-shimmer 1.4s ease infinite;
+}
+@keyframes skeleton-shimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+/* ---------- Spinner ---------- */
+.spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spinner-rotate 0.7s linear infinite;
+}
+@keyframes spinner-rotate { to { transform: rotate(360deg); } }
+
+/* honor user preference */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
