@@ -20,6 +20,7 @@ export default defineContentScript({
   main() {
     const dismissed = new Set<string>();
     let lastEid: string | null = null;
+    let lastMarked = false;
 
     const fab = mountFab((eid) => openFor(eid));
     const banner = mountBanner(
@@ -36,12 +37,16 @@ export default defineContentScript({
 
     function render(fromMutation: boolean) {
       const eid = currentEid();
+      const marked = !!eid && hasMagicAddress();
+      if (marked !== lastMarked) {
+        lastMarked = marked;
+        chrome.runtime.sendMessage({ type: 'SET_BADGE', marked }).catch(() => {});
+      }
       if (!eid) {
         fab.setEid(null);
         banner.hide();
         return;
       }
-      const marked = hasMagicAddress();
       if (marked && !dismissed.has(eid)) {
         fab.setEid(null);
         banner.show(eid);

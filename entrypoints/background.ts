@@ -100,6 +100,17 @@ async function handle(
         engine.cancelGuest(t, msg.iCalUid, msg.invitationId),
       );
 
+    case 'SET_BADGE': {
+      // Reinforce the nudge on the toolbar icon for marked (visitor) events —
+      // the one thing the Calendar add-on structurally can't do.
+      const tabId = sender.tab?.id;
+      if (tabId != null) {
+        await chrome.action.setBadgeBackgroundColor({ tabId, color: '#92288E' });
+        await chrome.action.setBadgeText({ tabId, text: msg.marked ? '1' : '' });
+      }
+      return ok({ done: true as const });
+    }
+
     default:
       return { ok: false, error: 'Unknown request' };
   }

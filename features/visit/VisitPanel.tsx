@@ -20,6 +20,7 @@ import {
   useResolveEvent,
   useSend,
 } from './hooks';
+import { AccountMenu } from './AccountMenu';
 import { RosterRow } from './RosterRow';
 import { PreviewSheet } from './PreviewSheet';
 import { SignInGate } from './SignInGate';
@@ -157,7 +158,7 @@ export function VisitPanel() {
         {/* Send result */}
         {send.isSuccess && <SendSummary result={send.data} />}
         {send.isError && (
-          <div className="banner banner--error">
+          <div className="banner banner--error" role="alert">
             <AlertCircle size={18} strokeWidth={2} style={{ flex: '0 0 auto' }} />
             <span className="type-body">{(send.error as Error).message}</span>
           </div>
@@ -231,6 +232,8 @@ function Shell({ children }: { children: React.ReactNode }) {
           <CalendarCheck size={18} strokeWidth={2.2} />
         </span>
         <span className="type-title">Auxilio Visitor</span>
+        <span style={{ flex: 1 }} />
+        <AccountMenu />
       </header>
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
         {children}
@@ -320,7 +323,7 @@ function RosterSkeleton({ title }: { title?: string }) {
 function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
     <div style={{ padding: 'var(--space-lg)' }}>
-      <div className="banner banner--error" style={{ marginBottom: 'var(--space-md)' }}>
+      <div className="banner banner--error" role="alert" style={{ marginBottom: 'var(--space-md)' }}>
         <AlertCircle size={18} strokeWidth={2} style={{ flex: '0 0 auto' }} />
         <span className="type-body">{message}</span>
       </div>
@@ -339,6 +342,8 @@ function SendSummary({
   return (
     <div
       className="banner"
+      role="status"
+      aria-live="polite"
       style={{ background: 'var(--color-success-container)', color: 'var(--color-on-success-container)' }}
     >
       <CheckCircle2 size={18} strokeWidth={2} style={{ flex: '0 0 auto' }} />

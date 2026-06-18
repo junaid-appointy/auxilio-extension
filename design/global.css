@@ -321,6 +321,18 @@ select.field__input { cursor: pointer; appearance: none; }
 .banner--error { background: var(--color-error-container); color: var(--color-on-error-container); }
 .banner--info { background: var(--color-primary-container); color: var(--color-on-primary-container); }
 
+/* keyboard focus ring (focus-visible only — no ring on mouse) */
+:where(button, a, input, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+.field__input:focus-visible {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary);
+}
+.switch:focus-visible { outline-offset: 3px; }
+
 /* fade/slide-in for panel content */
 .enter {
   animation: enter var(--motion-base) var(--motion-easing) both;

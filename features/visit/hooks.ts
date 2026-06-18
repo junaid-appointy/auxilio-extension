@@ -53,6 +53,19 @@ export function useSignIn() {
   });
 }
 
+export function useSignOut() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => rpc({ type: 'AUTH_SIGN_OUT' }),
+    onSuccess: () => {
+      qc.setQueryData(['auth'], { signedIn: false });
+      // Drop draft/resolve caches so the panel re-gates to sign-in.
+      qc.removeQueries({ queryKey: ['draft'] });
+      qc.removeQueries({ queryKey: ['resolve'] });
+    },
+  });
+}
+
 export function useResolveEvent(eid: string | null) {
   return useQuery({
     queryKey: ['resolve', eid],

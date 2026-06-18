@@ -24,7 +24,8 @@ export type RpcRequest =
   | { type: 'DRAFT_PATCH'; iCalUid: string; patch: DraftPatch }
   | { type: 'PREVIEW'; iCalUid: string; visitorEmail: string }
   | { type: 'SEND'; iCalUid: string; start?: string; end?: string }
-  | { type: 'CANCEL_GUEST'; iCalUid: string; invitationId: string };
+  | { type: 'CANCEL_GUEST'; iCalUid: string; invitationId: string }
+  | { type: 'SET_BADGE'; marked: boolean };
 
 /** Maps each request type to its success payload. */
 export interface RpcResultMap {
@@ -38,6 +39,7 @@ export interface RpcResultMap {
   PREVIEW: PreviewResponse;
   SEND: SendResponse;
   CANCEL_GUEST: { invitationId: string; cancelled: boolean };
+  SET_BADGE: { done: true };
 }
 
 export type RpcResponse<T> =
