@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   AlertCircle,
   CalendarCheck,
@@ -9,7 +10,7 @@ import {
   UserPlus,
 } from 'lucide-react';
 import { Button, Card, Skeleton, TextField } from '@/design/components';
-import { RpcError } from '@/lib/messaging';
+import { EVENT_TOUCHED, RpcError } from '@/lib/messaging';
 import type { PreviewResponse } from '@/lib/types';
 import {
   useActiveEid,
@@ -41,6 +42,20 @@ export function VisitPanel() {
     recipient: string;
   } | null>(null);
   const [location, setLocation] = useState<string | null>(null);
+
+  // Live refresh: when the content script reports the event's guests changed,
+  // refetch so the roster stays current as the host edits in Calendar.
+  const qc = useQueryClient();
+  useEffect(() => {
+    const listener = (msg: { type?: string }) => {
+      if (msg?.type === EVENT_TOUCHED) {
+        qc.invalidateQueries({ queryKey: ['resolve'] });
+        qc.invalidateQueries({ queryKey: ['draft'] });
+      }
+    };
+    chrome.runtime.onMessage.addListener(listener);
+    return () => chrome.runtime.onMessage.removeListener(listener);
+  }, [qc]);
 
   // ---- gating states ----
   if (!eid) return <Shell><NoEvent /></Shell>;

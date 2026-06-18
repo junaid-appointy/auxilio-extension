@@ -14,6 +14,8 @@ export default defineBackground(() => {
     .catch((err) => console.error('[auxilio] setPanelBehavior failed', err));
 
   chrome.runtime.onMessage.addListener((msg: RpcRequest, sender, sendResponse) => {
+    // Ignore one-way broadcasts (e.g. EVENT_TOUCHED) — the panel handles those.
+    if (typeof msg?.type === 'string' && msg.type.startsWith('__')) return false;
     handle(msg, sender)
       .then(sendResponse)
       .catch((err) => sendResponse(fail(err)));

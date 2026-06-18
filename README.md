@@ -25,5 +25,11 @@ WXT · React 19 · TypeScript · TanStack Query · Zustand · lucide-react · MD
 ## Status
 
 - **Phase 0** — scaffold, theme, side-panel shell. ✅
-- **Phase 1** — manual-invoke full flow (roster, toggles, edit, preview, send).
-- **Phase 2** — magic-address auto-nudge (Option A banner).
+- **Phase 1** — manual-invoke full flow (roster, toggles, edit, preview, send). ✅
+- **Phase 2** — magic-address auto-nudge (Option A banner) + live refresh. ✅
+- **Phase 3** — polish (sign-out, options page, badge, write-back). Pending.
+
+The magic address the banner keys off is `WXT_MAGIC_ADDRESS` (set it to the
+engine's `VISITOR_CALENDAR_INBOX_ADDRESS`). When that address is an attendee on
+an open event, the extension auto-shows the Option-A banner; any other event
+still gets the subtle "Register a visitor" button.

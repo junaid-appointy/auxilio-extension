@@ -70,3 +70,11 @@ export async function rpc<K extends RpcRequest['type']>(
 /** storage.session key holding the pending event id (set by background on the
  *  content-script "Register" click, read reactively by the side panel). */
 export const ACTIVE_EID_KEY = 'auxilio.activeEid';
+
+/** One-way content→panel signal: the open event's guest list changed, so the
+ *  panel should refetch. Not an RPC (no response); background ignores it. */
+export const EVENT_TOUCHED = '__auxilio_event_touched';
+
+export function notifyEventTouched(eid: string): void {
+  chrome.runtime.sendMessage({ type: EVENT_TOUCHED, eid }).catch(() => {});
+}
