@@ -152,3 +152,13 @@ export function usePreview(iCalUid: string | undefined) {
       rpc({ type: 'PREVIEW', iCalUid: iCalUid!, visitorEmail }),
   });
 }
+
+/** Upcoming visitor events (the synced magic-address set) for the picker. */
+export function useVisitorEvents(enabled: boolean) {
+  return useQuery({
+    queryKey: ['visitorEvents'],
+    queryFn: () => rpc({ type: 'LIST_VISITOR_EVENTS' }),
+    enabled,
+    staleTime: 30_000,
+  });
+}

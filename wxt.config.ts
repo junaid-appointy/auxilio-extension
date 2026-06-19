@@ -10,7 +10,7 @@ export default defineConfig({
     name: 'Auxilio Visitor',
     description:
       'Register office visitors directly from a Google Calendar event.',
-    permissions: ['identity', 'sidePanel', 'storage'],
+    permissions: ['identity', 'sidePanel', 'storage', 'alarms', 'notifications'],
     host_permissions: [
       'https://calendar.google.com/*',
       'https://www.googleapis.com/*',

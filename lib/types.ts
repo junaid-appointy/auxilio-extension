@@ -105,3 +105,13 @@ export interface AuthStatus {
   signedIn: boolean;
   email?: string;
 }
+
+/** A visitor (magic-address) event surfaced by the sync poll — for the
+ *  "open from list" picker and notifications. `eid` resolves like a clicked one. */
+export interface VisitorEventSummary {
+  eid: string;
+  eventId: string;
+  iCalUid: string;
+  title: string;
+  start?: string;
+}

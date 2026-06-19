@@ -12,6 +12,7 @@ import type {
   PreviewResponse,
   SendResponse,
   VisitDraft,
+  VisitorEventSummary,
 } from './types';
 
 export type RpcRequest =
@@ -25,7 +26,7 @@ export type RpcRequest =
   | { type: 'PREVIEW'; iCalUid: string; visitorEmail: string }
   | { type: 'SEND'; iCalUid: string; start?: string; end?: string }
   | { type: 'CANCEL_GUEST'; iCalUid: string; invitationId: string }
-  | { type: 'SET_BADGE'; marked: boolean };
+  | { type: 'LIST_VISITOR_EVENTS' };
 
 /** Maps each request type to its success payload. */
 export interface RpcResultMap {
@@ -39,7 +40,7 @@ export interface RpcResultMap {
   PREVIEW: PreviewResponse;
   SEND: SendResponse;
   CANCEL_GUEST: { invitationId: string; cancelled: boolean };
-  SET_BADGE: { done: true };
+  LIST_VISITOR_EVENTS: VisitorEventSummary[];
 }
 
 export type RpcResponse<T> =
@@ -73,10 +74,10 @@ export async function rpc<K extends RpcRequest['type']>(
  *  content-script "Register" click, read reactively by the side panel). */
 export const ACTIVE_EID_KEY = 'auxilio.activeEid';
 
-/** One-way content→panel signal: the open event's guest list changed, so the
- *  panel should refetch. Not an RPC (no response); background ignores it. */
-export const EVENT_TOUCHED = '__auxilio_event_touched';
+/** One-way background→panel broadcast: the active event changed on the server
+ *  (post-save), so the panel should refetch. Not an RPC (no response). */
+export const REFRESH_ACTIVE = '__auxilio_refresh_active';
 
-export function notifyEventTouched(eid: string): void {
-  chrome.runtime.sendMessage({ type: EVENT_TOUCHED, eid }).catch(() => {});
+export function broadcastRefreshActive(): void {
+  chrome.runtime.sendMessage({ type: REFRESH_ACTIVE }).catch(() => {});
 }

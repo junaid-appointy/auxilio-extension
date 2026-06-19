@@ -1,11 +1,17 @@
 import {
   ACTIVE_EID_KEY,
+  broadcastRefreshActive,
   type RpcRequest,
   type RpcResponse,
 } from '@/lib/messaging';
 import { authStatus, getValidTokens, signIn, signOut } from '@/lib/auth';
-import { fetchActiveEvent } from '@/lib/calendar';
+import { decodeEid, fetchActiveEvent } from '@/lib/calendar';
+import { listMarked, runSync } from '@/lib/calendar-sync';
 import { EngineError, engine } from '@/lib/engine';
+import type { VisitorEventSummary } from '@/lib/types';
+
+const SYNC_ALARM = 'auxilio-sync';
+const BADGE_COLOR = '#92288E';
 
 export default defineBackground(() => {
   // Toolbar icon opens the panel (Chrome's required user gesture).
@@ -13,9 +19,19 @@ export default defineBackground(() => {
     .setPanelBehavior({ openPanelOnActionClick: true })
     .catch((err) => console.error('[auxilio] setPanelBehavior failed', err));
 
+  // Durable, official change-detection: poll on an alarm (no DOM).
+  chrome.alarms.create(SYNC_ALARM, { periodInMinutes: 1 });
+  chrome.runtime.onInstalled.addListener(() =>
+    chrome.alarms.create(SYNC_ALARM, { periodInMinutes: 1 }),
+  );
+  chrome.runtime.onStartup.addListener(() => void doSync());
+  chrome.alarms.onAlarm.addListener((a) => {
+    if (a.name === SYNC_ALARM) void doSync();
+  });
+  chrome.notifications.onClicked.addListener((id) => chrome.notifications.clear(id));
+
   chrome.runtime.onMessage.addListener((msg: RpcRequest, sender, sendResponse) => {
-    // Ignore one-way broadcasts (e.g. EVENT_TOUCHED) — the panel handles those.
-    if (typeof msg?.type === 'string' && msg.type.startsWith('__')) return false;
+    if (typeof msg?.type === 'string' && msg.type.startsWith('__')) return false; // broadcasts
     handle(msg, sender)
       .then(sendResponse)
       .catch((err) => sendResponse(fail(err)));
@@ -25,31 +41,79 @@ export default defineBackground(() => {
   console.log('[auxilio] background ready');
 });
 
+// ─────────────────────────── sync loop ───────────────────────────
+
+async function doSync(): Promise<void> {
+  let accessToken: string;
+  try {
+    accessToken = (await getValidTokens()).accessToken;
+  } catch {
+    return; // not signed in — nothing to poll
+  }
+  let result;
+  try {
+    result = await runSync(accessToken);
+  } catch (err) {
+    console.warn('[auxilio] sync failed', err);
+    return;
+  }
+
+  // Toolbar badge = number of upcoming visitor events (the on-icon nudge).
+  await chrome.action.setBadgeBackgroundColor({ color: BADGE_COLOR });
+  await chrome.action.setBadgeText({
+    text: result.markedCount > 0 ? String(result.markedCount) : '',
+  });
+
+  // OS notification for each newly-discovered visitor event.
+  for (const ev of result.newMarked) notifyVisitorEvent(ev);
+
+  // If the event the panel is showing changed (post-save), tell it to refetch.
+  const stored = await chrome.storage.session.get(ACTIVE_EID_KEY);
+  const activeEid = stored[ACTIVE_EID_KEY] as string | undefined;
+  if (activeEid) {
+    const dec = decodeEid(activeEid);
+    if (dec && result.changedIds.has(dec.eventId)) broadcastRefreshActive();
+  }
+}
+
+function notifyVisitorEvent(ev: VisitorEventSummary): void {
+  chrome.notifications.create(`auxilio:${ev.eventId}`, {
+    type: 'basic',
+    iconUrl: chrome.runtime.getURL('icon/128.png'),
+    title: 'Visitor event',
+    message: `${ev.title} — open Auxilio to register passes`,
+    priority: 1,
+  });
+}
+
+// ─────────────────────────── RPC plumbing ───────────────────────────
+
 const ok = <T,>(data: T): RpcResponse<T> => ({ ok: true, data });
 
 function fail(err: unknown): RpcResponse<never> {
   const message = err instanceof Error ? err.message : String(err);
   const status = err instanceof EngineError ? err.status : undefined;
-  const needsAuth = status === 401;
-  return { ok: false, error: message, status, needsAuth };
+  return { ok: false, error: message, status, needsAuth: status === 401 };
 }
 
-/** Run an engine call with a fresh id_token; map auth failures to needsAuth. */
-async function withIdToken<T>(
-  fn: (idToken: string) => Promise<T>,
+async function withTokens<T>(
+  fn: (t: { idToken: string; accessToken: string }) => Promise<T>,
 ): Promise<RpcResponse<T>> {
-  let idToken: string;
+  let tokens;
   try {
-    idToken = (await getValidTokens()).idToken;
+    tokens = await getValidTokens();
   } catch {
     return { ok: false, error: 'Sign in to continue.', needsAuth: true };
   }
   try {
-    return ok(await fn(idToken));
+    return ok(await fn(tokens));
   } catch (err) {
     return fail(err);
   }
 }
+
+const withIdToken = <T,>(fn: (idToken: string) => Promise<T>) =>
+  withTokens((t) => fn(t.idToken));
 
 async function handle(
   msg: RpcRequest,
@@ -58,15 +122,17 @@ async function handle(
   switch (msg.type) {
     case 'AUTH_STATUS':
       return ok(await authStatus());
-    case 'AUTH_SIGN_IN':
-      return ok(await signIn());
+    case 'AUTH_SIGN_IN': {
+      const status = await signIn();
+      void doSync(); // warm the marked set + badge right after sign-in
+      return ok(status);
+    }
     case 'AUTH_SIGN_OUT':
       await signOut();
+      await chrome.action.setBadgeText({ text: '' });
       return ok({ signedIn: false });
 
     case 'OPEN_FOR_EVENT': {
-      // Store the pending event id, then open the panel using the gesture that
-      // came with this content-script click. Resolution/auth happens in the panel.
       await chrome.storage.session.set({ [ACTIVE_EID_KEY]: msg.eid });
       let opened = false;
       try {
@@ -82,10 +148,7 @@ async function handle(
     }
 
     case 'RESOLVE_EVENT':
-      return withIdToken(async () => {
-        const tokens = await getValidTokens();
-        return fetchActiveEvent(msg.eid, tokens.accessToken);
-      });
+      return withTokens((t) => fetchActiveEvent(msg.eid, t.accessToken));
 
     case 'DRAFT_LOAD':
       return withIdToken((t) => engine.loadDraft(t, msg.event));
@@ -100,16 +163,11 @@ async function handle(
         engine.cancelGuest(t, msg.iCalUid, msg.invitationId),
       );
 
-    case 'SET_BADGE': {
-      // Reinforce the nudge on the toolbar icon for marked (visitor) events —
-      // the one thing the Calendar add-on structurally can't do.
-      const tabId = sender.tab?.id;
-      if (tabId != null) {
-        await chrome.action.setBadgeBackgroundColor({ tabId, color: '#92288E' });
-        await chrome.action.setBadgeText({ tabId, text: msg.marked ? '1' : '' });
-      }
-      return ok({ done: true as const });
-    }
+    case 'LIST_VISITOR_EVENTS':
+      return withTokens(async (t) => {
+        await runSync(t.accessToken); // refresh before listing
+        return listMarked();
+      });
 
     default:
       return { ok: false, error: 'Unknown request' };

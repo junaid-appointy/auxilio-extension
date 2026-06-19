@@ -7,20 +7,22 @@ import {
   Clock,
   RefreshCw,
   Send,
-  UserPlus,
 } from 'lucide-react';
 import { Button, Card, Skeleton, TextField } from '@/design/components';
-import { EVENT_TOUCHED, RpcError } from '@/lib/messaging';
+import { ACTIVE_EID_KEY, REFRESH_ACTIVE, RpcError } from '@/lib/messaging';
 import type { PreviewResponse } from '@/lib/types';
 import {
   useActiveEid,
+  useAuthStatus,
   useDraft,
   usePatchDraft,
   usePreview,
   useResolveEvent,
   useSend,
+  useVisitorEvents,
 } from './hooks';
 import { AccountMenu } from './AccountMenu';
+import { EmptyState } from './EmptyState';
 import { RosterRow } from './RosterRow';
 import { PreviewSheet } from './PreviewSheet';
 import { SignInGate } from './SignInGate';
@@ -29,6 +31,9 @@ const isAuthError = (err: unknown) => err instanceof RpcError && !!err.needsAuth
 
 export function VisitPanel() {
   const eid = useActiveEid();
+  const auth = useAuthStatus();
+  // Picker fuels the "open from list" empty state (and graceful fallback).
+  const visitorEvents = useVisitorEvents(!eid && !!auth.data?.signedIn);
   const resolve = useResolveEvent(eid);
   const event = resolve.data;
   const draft = useDraft(event);
@@ -44,12 +49,12 @@ export function VisitPanel() {
   } | null>(null);
   const [location, setLocation] = useState<string | null>(null);
 
-  // Live refresh: when the content script reports the event's guests changed,
-  // refetch so the roster stays current as the host edits in Calendar.
+  // Post-save refresh: the background sync poll broadcasts when the active event
+  // changed on the server (no DOM); refetch so the roster reflects saved state.
   const qc = useQueryClient();
   useEffect(() => {
     const listener = (msg: { type?: string }) => {
-      if (msg?.type === EVENT_TOUCHED) {
+      if (msg?.type === REFRESH_ACTIVE) {
         qc.invalidateQueries({ queryKey: ['resolve'] });
         qc.invalidateQueries({ queryKey: ['draft'] });
       }
@@ -59,7 +64,20 @@ export function VisitPanel() {
   }, [qc]);
 
   // ---- gating states ----
-  if (!eid) return <Shell><NoEvent /></Shell>;
+  if (!eid) {
+    return (
+      <Shell>
+        <EmptyState
+          auth={auth.data}
+          events={visitorEvents.data}
+          loading={visitorEvents.isLoading}
+          onPick={(pickedEid) =>
+            chrome.storage.session.set({ [ACTIVE_EID_KEY]: pickedEid })
+          }
+        />
+      </Shell>
+    );
+  }
   if (isAuthError(resolve.error) || isAuthError(draft.error)) {
     return <Shell><SignInGate /></Shell>;
   }
@@ -238,43 +256,6 @@ function Shell({ children }: { children: React.ReactNode }) {
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
         {children}
       </div>
-    </div>
-  );
-}
-
-function NoEvent() {
-  return (
-    <div style={{ padding: 'var(--space-lg)' }}>
-      <Card
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          textAlign: 'center',
-          gap: 'var(--space-sm)',
-          padding: 'var(--space-xl)',
-        }}
-      >
-        <span
-          style={{
-            display: 'inline-flex',
-            width: 48,
-            height: 48,
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderRadius: 'var(--radius-pill)',
-            background: 'var(--color-primary-container)',
-            color: 'var(--color-on-primary-container)',
-          }}
-        >
-          <UserPlus size={24} strokeWidth={2} />
-        </span>
-        <span className="type-title-lg">No event open</span>
-        <span className="type-body text-muted">
-          Open a Google Calendar event, then click{' '}
-          <strong>Register a visitor</strong> to issue passes for your guests.
-        </span>
-      </Card>
     </div>
   );
 }
