@@ -1,5 +1,5 @@
-import { CalendarCheck, CheckCircle2, LogIn, LogOut } from 'lucide-react';
-import { Button, Card } from '@/design/components';
+import { CheckCircle2, LogIn, LogOut } from 'lucide-react';
+import { Button, Card, Logo } from '@/design/components';
 import { ENGINE_BASE_URL, MAGIC_ADDRESS, OAUTH_CLIENT_ID } from '@/lib/config';
 import { useAuthStatus, useSignIn, useSignOut } from '@/features/visit/hooks';
 
@@ -12,20 +12,7 @@ export default function Options() {
   return (
     <div style={{ maxWidth: 560, margin: '0 auto', padding: 'var(--space-xl)', display: 'grid', gap: 'var(--space-lg)' }}>
       <header style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
-        <span
-          style={{
-            display: 'inline-flex',
-            width: 32,
-            height: 32,
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderRadius: 'var(--radius-sm)',
-            background: 'var(--color-primary)',
-            color: 'var(--color-on-primary)',
-          }}
-        >
-          <CalendarCheck size={20} strokeWidth={2.2} />
-        </span>
+        <Logo size={32} />
         <span className="type-headline">Auxilio Visitor</span>
       </header>
 

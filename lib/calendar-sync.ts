@@ -25,6 +25,9 @@ async function readMarked(): Promise<MarkedMap> {
 export interface SyncResult {
   changedIds: Set<string>;
   newMarked: VisitorEventSummary[];
+  /** Events seen this cycle that are no longer pending visitor events (deleted/
+   *  cancelled). Lets the in-page nudge purge stale optimistic guesses. */
+  cancelledIds: string[];
   markedCount: number;
 }
 
@@ -44,6 +47,7 @@ export async function runSync(accessToken: string): Promise<SyncResult> {
 
   const changedIds = new Set<string>();
   const newMarked: VisitorEventSummary[] = [];
+  const cancelledIds: string[] = [];
 
   for (const ev of resp.items) {
     if (!ev.id) continue;
@@ -60,7 +64,10 @@ export async function runSync(accessToken: string): Promise<SyncResult> {
       if (!marked[ev.id]) newMarked.push(summary);
       marked[ev.id] = summary;
     } else {
-      delete marked[ev.id]; // unmarked or cancelled
+      // Cancelled (deleted) or no longer a visitor event → not pending. Report
+      // it so any optimistic in-page nudge for it gets purged.
+      if (cancelled || marked[ev.id]) cancelledIds.push(ev.id);
+      delete marked[ev.id];
     }
   }
 
@@ -76,7 +83,7 @@ export async function runSync(accessToken: string): Promise<SyncResult> {
     [MARKED_KEY]: marked,
   });
 
-  return { changedIds, newMarked, markedCount: Object.keys(marked).length };
+  return { changedIds, newMarked, cancelledIds, markedCount: Object.keys(marked).length };
 }
 
 /** Upcoming visitor events, soonest first — for the panel's picker. */

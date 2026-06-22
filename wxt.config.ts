@@ -14,9 +14,19 @@ export default defineConfig({
     host_permissions: [
       'https://calendar.google.com/*',
       'https://www.googleapis.com/*',
+      // Engine: deployed bifrost dev + the local reserved backend tunnel.
       'https://ops-engine-dev-330299.bifrost.saastack.site/*',
+      'https://unyearning-olympia-unclimactic.ngrok-free.dev/*',
     ],
     // Toolbar icon; background flips openPanelOnActionClick so a click opens the panel.
-    action: { default_title: 'Auxilio Visitor' },
+    action: {
+      default_title: 'Auxilio Visitor',
+      default_icon: {
+        16: 'icon/16.png',
+        32: 'icon/32.png',
+        48: 'icon/48.png',
+        128: 'icon/128.png',
+      },
+    },
   },
 });

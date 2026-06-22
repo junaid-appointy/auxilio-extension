@@ -1,11 +1,15 @@
 import {
   ACTIVE_EID_KEY,
+  ACTIVE_SNAPSHOT_KEY,
+  NUDGE_TARGETS,
+  PANEL_STATE,
+  SIDEPANEL_PORT,
   broadcastRefreshActive,
   type RpcRequest,
   type RpcResponse,
 } from '@/lib/messaging';
 import { authStatus, getValidTokens, signIn, signOut } from '@/lib/auth';
-import { decodeEid, fetchActiveEvent } from '@/lib/calendar';
+import { decodeEid, encodeEid, fetchActiveEvent } from '@/lib/calendar';
 import { listMarked, runSync } from '@/lib/calendar-sync';
 import { EngineError, engine } from '@/lib/engine';
 import type { VisitorEventSummary } from '@/lib/types';
@@ -13,7 +17,17 @@ import type { VisitorEventSummary } from '@/lib/types';
 const SYNC_ALARM = 'auxilio-sync';
 const BADGE_COLOR = '#92288E';
 
+// Whether the side panel is currently open (a port is connected). Content
+// scripts ask for this on (re)load so auto-follow works after navigation.
+let panelConnected = false;
+
 export default defineBackground(() => {
+  // Let content scripts read/write storage.session (default is trusted-only).
+  // Needed for the active-event handoff + nudge-dismissal persistence.
+  chrome.storage.session
+    .setAccessLevel({ accessLevel: 'TRUSTED_AND_UNTRUSTED_CONTEXTS' })
+    .catch((err) => console.warn('[auxilio] setAccessLevel failed', err));
+
   // Toolbar icon opens the panel (Chrome's required user gesture).
   chrome.sidePanel
     .setPanelBehavior({ openPanelOnActionClick: true })
@@ -29,6 +43,18 @@ export default defineBackground(() => {
     if (a.name === SYNC_ALARM) void doSync();
   });
   chrome.notifications.onClicked.addListener((id) => chrome.notifications.clear(id));
+
+  // Track the side panel open/closed via a port it connects on mount, and tell
+  // calendar tabs so the in-page button can hide while the panel is open.
+  chrome.runtime.onConnect.addListener((port) => {
+    if (port.name !== SIDEPANEL_PORT) return;
+    panelConnected = true;
+    broadcastPanelState(true);
+    port.onDisconnect.addListener(() => {
+      panelConnected = false;
+      broadcastPanelState(false);
+    });
+  });
 
   chrome.runtime.onMessage.addListener((msg: RpcRequest, sender, sendResponse) => {
     if (typeof msg?.type === 'string' && msg.type.startsWith('__')) return false; // broadcasts
@@ -64,8 +90,13 @@ async function doSync(): Promise<void> {
     text: result.markedCount > 0 ? String(result.markedCount) : '',
   });
 
-  // OS notification for each newly-discovered visitor event.
+  // OS notification for each newly-discovered visitor event (out-of-tab alert).
   for (const ev of result.newMarked) notifyVisitorEvent(ev);
+
+  // In-page nudge banner: push the current marked set to calendar tabs, plus
+  // any events that just stopped being pending (deleted/cancelled) so the page
+  // can purge stale optimistic nudges for them.
+  broadcastNudge(await listMarked(), result.cancelledIds);
 
   // If the event the panel is showing changed (post-save), tell it to refetch.
   const stored = await chrome.storage.session.get(ACTIVE_EID_KEY);
@@ -74,6 +105,25 @@ async function doSync(): Promise<void> {
     const dec = decodeEid(activeEid);
     if (dec && result.changedIds.has(dec.eventId)) broadcastRefreshActive();
   }
+}
+
+function broadcastPanelState(open: boolean): void {
+  sendToCalendarTabs({ type: PANEL_STATE, open });
+}
+
+function broadcastNudge(targets: VisitorEventSummary[], cancelled: string[] = []): void {
+  sendToCalendarTabs({ type: NUDGE_TARGETS, targets, cancelled });
+}
+
+function sendToCalendarTabs(message: unknown): void {
+  chrome.tabs
+    .query({ url: 'https://calendar.google.com/*' })
+    .then((tabs) => {
+      for (const t of tabs) {
+        if (t.id != null) chrome.tabs.sendMessage(t.id, message).catch(() => {});
+      }
+    })
+    .catch(() => {});
 }
 
 function notifyVisitorEvent(ev: VisitorEventSummary): void {
@@ -97,7 +147,7 @@ function fail(err: unknown): RpcResponse<never> {
 }
 
 async function withTokens<T>(
-  fn: (t: { idToken: string; accessToken: string }) => Promise<T>,
+  fn: (t: { idToken: string; accessToken: string; email?: string }) => Promise<T>,
 ): Promise<RpcResponse<T>> {
   let tokens;
   try {
@@ -133,18 +183,35 @@ async function handle(
       return ok({ signedIn: false });
 
     case 'OPEN_FOR_EVENT': {
-      await chrome.storage.session.set({ [ACTIVE_EID_KEY]: msg.eid });
+      // Open the panel FIRST, before any await, so the content-script click's
+      // user activation is still valid — sidePanel.open() requires a gesture.
+      const tabId = sender.tab?.id;
       let opened = false;
-      try {
-        const tabId = sender.tab?.id;
-        if (tabId != null) {
+      if (tabId != null) {
+        try {
           await chrome.sidePanel.open({ tabId });
           opened = true;
+        } catch (err) {
+          console.warn('[auxilio] sidePanel.open failed (gesture not carried?)', err);
         }
-      } catch {
-        // Gesture may not have carried; the user can click the toolbar icon.
       }
+      // Store after — the panel reacts to this via storage.onChanged either way.
+      // The DOM snapshot lets the panel paint instantly + cover the unsaved case.
+      await chrome.storage.session.set({
+        [ACTIVE_EID_KEY]: msg.eid,
+        [ACTIVE_SNAPSHOT_KEY]: msg.snapshot ?? null,
+      });
       return ok({ opened });
+    }
+
+    case 'FOLLOW_EVENT': {
+      // Auto-follow: point the (already open) panel at the event the user is
+      // viewing — no sidePanel.open. The panel applies its own busy-guard.
+      await chrome.storage.session.set({
+        [ACTIVE_EID_KEY]: msg.eid,
+        [ACTIVE_SNAPSHOT_KEY]: msg.snapshot ?? null,
+      });
+      return ok({ followed: true });
     }
 
     case 'RESOLVE_EVENT':
@@ -167,6 +234,58 @@ async function handle(
       return withTokens(async (t) => {
         await runSync(t.accessToken); // refresh before listing
         return listMarked();
+      });
+
+    case 'GET_NUDGE_TARGETS':
+      // Cheap read of the last-synced marked set (no token / no sync) — lets the
+      // content script seed its banner immediately on page load.
+      return ok(await listMarked());
+
+    case 'SYNC_NOW':
+      // On-demand sync (page load / tab focus / just left the editor) so the
+      // banner appears fast instead of waiting up to a minute for the alarm.
+      await doSync();
+      return ok({ synced: true });
+
+    case 'GET_PANEL_STATE':
+      return ok({ open: panelConnected });
+
+    case 'NAVIGATE_TO_EVENT':
+      return withTokens(async (t) => {
+        // Open the event's full EDIT screen (/r/eventedit/<eid>) in the existing
+        // calendar tab — same tab, no new tab. The button passes a ready eid
+        // (from the page's data-eventid); the nudge passes eventId to encode
+        // (sync events only carry the id; primary calendar id = the user's email).
+        let editEid = msg.eid;
+        if (!editEid && msg.eventId) {
+          const email = t.email ?? (await authStatus()).email ?? 'primary';
+          editEid = encodeEid(msg.eventId, email);
+        }
+        // The web editor needs the *real* calendar id in the eid — for the
+        // primary calendar that's the user's email, not the literal "primary"
+        // (which the Calendar API accepts but the /eventedit URL can't resolve).
+        // Sync/nudge eids are encoded with "primary", so rewrite them here.
+        if (editEid) {
+          const dec = decodeEid(editEid);
+          if (dec && (dec.calendarId === 'primary' || !dec.calendarId)) {
+            const email = t.email ?? (await authStatus()).email;
+            if (email) editEid = encodeEid(dec.eventId, email);
+          }
+        }
+        // Google's eventedit eid is base64 with padding stripped — normalize the
+        // raw data-eventid (which may carry `=` padding) to match.
+        if (editEid) editEid = editEid.replace(/=+$/, '');
+        if (!editEid) return { navigated: false };
+        const tabs = await chrome.tabs.query({ url: 'https://calendar.google.com/*' });
+        const tab = tabs.find((x) => x.active) ?? tabs[0];
+        if (tab?.id == null || !tab.url) return { navigated: false };
+        // Build the edit-screen URL from the /u/<n>/ account segment.
+        const u = tab.url.match(/\/calendar\/(u\/\d+\/)?/);
+        const userSeg = u?.[1] ?? '';
+        const url = `https://calendar.google.com/calendar/${userSeg}r/eventedit/${editEid}`;
+        console.log('[auxilio] navigate →', { from: tab.url, to: url, editEid });
+        await chrome.tabs.update(tab.id, { url, active: true });
+        return { navigated: true };
       });
 
     default:

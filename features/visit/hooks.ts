@@ -4,10 +4,11 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
-import { ACTIVE_EID_KEY, rpc } from '@/lib/messaging';
+import { ACTIVE_EID_KEY, ACTIVE_SNAPSHOT_KEY, rpc } from '@/lib/messaging';
 import type {
   ActiveEvent,
   AuthStatus,
+  DomEventSnapshot,
   DraftPatch,
   DraftResponse,
   VisitDraft,
@@ -32,6 +33,27 @@ export function useActiveEid(): string | null {
     return () => chrome.storage.onChanged.removeListener(listener);
   }, []);
   return eid;
+}
+
+/** The DOM snapshot for the active event (instant + unsaved fallback). */
+export function useActiveSnapshot(): DomEventSnapshot | null {
+  const [snap, setSnap] = useState<DomEventSnapshot | null>(null);
+  useEffect(() => {
+    chrome.storage.session
+      .get(ACTIVE_SNAPSHOT_KEY)
+      .then((r) => setSnap((r[ACTIVE_SNAPSHOT_KEY] as DomEventSnapshot) ?? null));
+    const listener = (
+      changes: { [k: string]: chrome.storage.StorageChange },
+      area: string,
+    ) => {
+      if (area === 'session' && changes[ACTIVE_SNAPSHOT_KEY]) {
+        setSnap((changes[ACTIVE_SNAPSHOT_KEY].newValue as DomEventSnapshot) ?? null);
+      }
+    };
+    chrome.storage.onChanged.addListener(listener);
+    return () => chrome.storage.onChanged.removeListener(listener);
+  }, []);
+  return snap;
 }
 
 export function useAuthStatus() {

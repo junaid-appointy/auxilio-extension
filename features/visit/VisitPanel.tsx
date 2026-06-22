@@ -2,17 +2,33 @@ import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   AlertCircle,
-  CalendarCheck,
+  ArrowLeft,
   CheckCircle2,
   Clock,
+  DoorOpen,
+  Eye,
   RefreshCw,
-  Send,
 } from 'lucide-react';
-import { Button, Card, Skeleton, TextField } from '@/design/components';
-import { ACTIVE_EID_KEY, REFRESH_ACTIVE, RpcError } from '@/lib/messaging';
+import {
+  Button,
+  Card,
+  IconButton,
+  Logo,
+  SelectField,
+  Skeleton,
+  TextField,
+} from '@/design/components';
+import {
+  ACTIVE_EID_KEY,
+  ACTIVE_SNAPSHOT_KEY,
+  REFRESH_ACTIVE,
+  RpcError,
+  rpc,
+} from '@/lib/messaging';
 import type { PreviewResponse } from '@/lib/types';
 import {
   useActiveEid,
+  useActiveSnapshot,
   useAuthStatus,
   useDraft,
   usePatchDraft,
@@ -30,7 +46,12 @@ import { SignInGate } from './SignInGate';
 const isAuthError = (err: unknown) => err instanceof RpcError && !!err.needsAuth;
 
 export function VisitPanel() {
-  const eid = useActiveEid();
+  // `storedEid` is what the content script is pointing us at (auto-follow). We
+  // freeze the *displayed* `eid` while busy so following never switches the view
+  // mid-action (Guard 1); edits already persist on blur (Guard 2).
+  const storedEid = useActiveEid();
+  const snapshot = useActiveSnapshot();
+  const [eid, setEid] = useState<string | null>(storedEid);
   const auth = useAuthStatus();
   // Picker fuels the "open from list" empty state (and graceful fallback).
   const visitorEvents = useVisitorEvents(!eid && !!auth.data?.signedIn);
@@ -42,12 +63,17 @@ export function VisitPanel() {
   const send = useSend(event?.iCalUid, event?.start, event?.end);
   const preview = usePreview(event?.iCalUid);
 
-  const [previewFor, setPreviewFor] = useState<string | null>(null);
   const [previewData, setPreviewData] = useState<{
     preview: PreviewResponse;
     recipient: string;
   } | null>(null);
   const [location, setLocation] = useState<string | null>(null);
+
+  // Guard 1: hold the current event while sending / previewing; catch up once idle.
+  const busy = send.isPending || preview.isPending || !!previewData;
+  useEffect(() => {
+    if (!busy) setEid(storedEid);
+  }, [storedEid, busy]);
 
   // Post-save refresh: the background sync poll broadcasts when the active event
   // changed on the server (no DOM); refetch so the roster reflects saved state.
@@ -63,41 +89,88 @@ export function VisitPanel() {
     return () => chrome.runtime.onMessage.removeListener(listener);
   }, [qc]);
 
+  // Back → clear the active event/snapshot, returning to the home list.
+  const clearActive = () =>
+    chrome.storage.session.remove([ACTIVE_EID_KEY, ACTIVE_SNAPSHOT_KEY]);
+  // Show Back in every screen except the pure home (no event, no snapshot).
+  const back = eid || snapshot?.magicPresent ? clearActive : undefined;
+
   // ---- gating states ----
   if (!eid) {
+    // New, not-yet-saved visitor event (no eid, but the DOM saw the magic
+    // address) → preview the detected guests + prompt to save.
+    if (snapshot?.magicPresent) {
+      return (
+        <Shell onBack={back}>
+          <NoticeState
+            title="Save the event to issue passes"
+            body="This event isn’t saved yet, so passes can’t be issued. Add your guests and save it in Google Calendar, then reopen Manage Visitors."
+            guests={snapshot.guestEmails}
+          />
+        </Shell>
+      );
+    }
     return (
       <Shell>
         <EmptyState
           auth={auth.data}
           events={visitorEvents.data}
           loading={visitorEvents.isLoading}
-          onPick={(pickedEid) =>
-            chrome.storage.session.set({ [ACTIVE_EID_KEY]: pickedEid })
-          }
+          onPick={(ev) => {
+            chrome.storage.session.set({ [ACTIVE_EID_KEY]: ev.eid });
+            // Idea 4: also open that event in the same calendar tab.
+            void rpc({ type: 'NAVIGATE_TO_EVENT', eventId: ev.eventId });
+          }}
         />
       </Shell>
     );
   }
   if (isAuthError(resolve.error) || isAuthError(draft.error)) {
-    return <Shell><SignInGate /></Shell>;
+    return <Shell onBack={back}><SignInGate /></Shell>;
   }
-  if (resolve.isLoading) return <Shell><LoadingState label="Reading event…" /></Shell>;
+  if (resolve.isLoading) return <Shell onBack={back}><LoadingState label="Reading event…" /></Shell>;
   if (resolve.isError) {
+    const msg = (resolve.error as Error).message;
+    if (msg === 'NOT_SAVED') {
+      return (
+        <Shell onBack={back}>
+          <NoticeState
+            title="Save the event to issue passes"
+            body="This event isn’t saved yet, so passes can’t be issued. Save it in Google Calendar, then reopen Manage Visitors."
+            onRetry={() => resolve.refetch()}
+            guests={snapshot?.guestEmails}
+          />
+        </Shell>
+      );
+    }
     return (
-      <Shell>
-        <ErrorState message={(resolve.error as Error).message} onRetry={() => resolve.refetch()} />
+      <Shell onBack={back}>
+        <ErrorState message={msg} onRetry={() => resolve.refetch()} />
       </Shell>
     );
   }
-  if (draft.isLoading || !draft.data) {
-    return <Shell><RosterSkeleton title={event?.title} /></Shell>;
+  // Event resolved but no iCalUID → the draft query can't run (would sit on a
+  // skeleton forever). Surface it instead of hanging.
+  if (event && !event.iCalUid) {
+    return (
+      <Shell onBack={back}>
+        <NoticeState
+          title="Can’t register from this event"
+          body="This event has no calendar UID yet — usually because it isn’t fully saved. Save it in Google Calendar and try again."
+          onRetry={() => resolve.refetch()}
+        />
+      </Shell>
+    );
   }
   if (draft.isError) {
     return (
-      <Shell>
+      <Shell onBack={back}>
         <ErrorState message={(draft.error as Error).message} onRetry={() => draft.refetch()} />
       </Shell>
     );
+  }
+  if (!draft.data) {
+    return <Shell onBack={back}><RosterSkeleton title={event?.title} /></Shell>;
   }
 
   const data = draft.data;
@@ -105,26 +178,43 @@ export function VisitPanel() {
   const sentCount = data.roster.filter((g) => g.status === 'sent').length;
   const locValue = location ?? data.location ?? '';
 
+  const templates = data.emailTemplates;
+  // One template for the whole event (engine stores per-guest; we set all guests
+  // to the chosen key).
+  const currentTemplate =
+    data.roster.find((g) => g.emailTemplateKey)?.emailTemplateKey ??
+    templates.find((t) => t.isDefault)?.key ??
+    templates[0]?.key;
+
   const patchGuest = (email: string, edit: Record<string, unknown>) =>
     patch.mutate({ guests: [{ email, ...edit }] });
 
-  const doPreview = (email: string) => {
-    setPreviewFor(email);
-    preview.mutate(email, {
-      onSuccess: (d) => {
-        setPreviewData({ preview: d, recipient: email });
-        setPreviewFor(null);
-      },
-      onError: () => setPreviewFor(null),
+  const setEventTemplate = (key: string) =>
+    patch.mutate({ guests: data.roster.map((g) => ({ email: g.email, emailTemplateKey: key })) });
+
+  // Review & send: render the real email for a representative included guest,
+  // then Send/Cancel from the preview.
+  const reviewEmail = included[0]?.email;
+  const openReview = () => {
+    if (!reviewEmail) return;
+    preview.mutate(reviewEmail, {
+      onSuccess: (d) => setPreviewData({ preview: d, recipient: reviewEmail }),
     });
   };
 
   const canSend = (included.length > 0 || data.materialized) && !send.isPending;
-  const sendLabel = data.materialized ? 'Update passes' : 'Send passes';
+  const reviewLabel = data.materialized ? 'Review & update passes' : 'Review & send passes';
 
   return (
-    <Shell>
+    <Shell onBack={back}>
       <div className="enter" style={{ padding: 'var(--space-lg)', display: 'grid', gap: 'var(--space-lg)' }}>
+        <div
+          className="type-label-sm text-muted"
+          style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+        >
+          <Eye size={13} strokeWidth={2} />
+          Following the event open in Calendar
+        </div>
         {/* Event summary */}
         <Card style={{ display: 'grid', gap: 'var(--space-sm)' }}>
           <div className="type-title-lg">{event?.title || 'Untitled event'}</div>
@@ -132,6 +222,26 @@ export function VisitPanel() {
             <div className="type-body text-muted" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <Clock size={15} strokeWidth={2} />
               {formatWhen(event.start, event.end)}
+            </div>
+          )}
+          {event?.rooms && event.rooms.length > 0 && (
+            <div className="type-body text-muted" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <DoorOpen size={15} strokeWidth={2} />
+              <span className="row__ellipsis">{event.rooms.join(', ')}</span>
+            </div>
+          )}
+          {event?.description && (
+            <div
+              className="type-label-sm text-muted"
+              style={{
+                whiteSpace: 'pre-wrap',
+                maxHeight: 72,
+                overflow: 'hidden',
+                borderTop: '1px solid var(--color-outline-variant)',
+                paddingTop: 'var(--space-sm)',
+              }}
+            >
+              {event.description}
             </div>
           )}
           <TextField
@@ -143,6 +253,20 @@ export function VisitPanel() {
               locValue !== (data.location ?? '') && patch.mutate({ location: locValue })
             }
           />
+          {templates.length >= 2 && (
+            <SelectField
+              label="Email template (all guests)"
+              value={currentTemplate}
+              onChange={(e) => setEventTemplate(e.target.value)}
+            >
+              {templates.map((t) => (
+                <option key={t.key} value={t.key}>
+                  {t.name}
+                  {t.isDefault ? ' (default)' : ''}
+                </option>
+              ))}
+            </SelectField>
+          )}
         </Card>
 
         {/* Roster */}
@@ -163,10 +287,7 @@ export function VisitPanel() {
                 <RosterRow
                   key={g.email}
                   guest={g}
-                  templates={data.emailTemplates}
                   onChange={(edit) => patchGuest(g.email, edit)}
-                  onPreview={() => doPreview(g.email)}
-                  previewing={previewFor === g.email}
                 />
               ))}
             </Card>
@@ -193,15 +314,20 @@ export function VisitPanel() {
       >
         <Button
           block
-          loading={send.isPending}
+          loading={preview.isPending}
           disabled={!canSend}
-          icon={<Send size={18} strokeWidth={2} />}
-          onClick={() => send.mutate()}
+          icon={<Eye size={18} strokeWidth={2} />}
+          onClick={openReview}
         >
-          {send.isPending
-            ? 'Sending…'
-            : `${sendLabel}${included.length ? ` (${included.length})` : ''}`}
+          {preview.isPending
+            ? 'Loading preview…'
+            : `${reviewLabel}${included.length ? ` (${included.length})` : ''}`}
         </Button>
+        {preview.isError && (
+          <div className="type-label-sm" style={{ color: 'var(--color-error)', textAlign: 'center', marginTop: 6 }}>
+            {(preview.error as Error).message}
+          </div>
+        )}
         {sentCount > 0 && !send.isPending && (
           <div className="type-label-sm text-muted" style={{ textAlign: 'center', marginTop: 6 }}>
             {sentCount} pass{sentCount > 1 ? 'es' : ''} already issued
@@ -213,6 +339,11 @@ export function VisitPanel() {
         <PreviewSheet
           preview={previewData.preview}
           recipient={previewData.recipient}
+          totalCount={included.length}
+          sending={send.isPending}
+          onSend={() =>
+            send.mutate(undefined, { onSuccess: () => setPreviewData(null) })
+          }
           onClose={() => setPreviewData(null)}
         />
       )}
@@ -222,7 +353,7 @@ export function VisitPanel() {
 
 // ───────────────────────── sub-components ─────────────────────────
 
-function Shell({ children }: { children: React.ReactNode }) {
+function Shell({ children, onBack }: { children: React.ReactNode; onBack?: () => void }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minWidth: 320 }}>
       <header
@@ -235,20 +366,13 @@ function Shell({ children }: { children: React.ReactNode }) {
           flex: '0 0 auto',
         }}
       >
-        <span
-          style={{
-            display: 'inline-flex',
-            width: 28,
-            height: 28,
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderRadius: 'var(--radius-sm)',
-            background: 'var(--color-primary)',
-            color: 'var(--color-on-primary)',
-          }}
-        >
-          <CalendarCheck size={18} strokeWidth={2.2} />
-        </span>
+        {onBack ? (
+          <IconButton label="Back to events" onClick={onBack}>
+            <ArrowLeft size={20} strokeWidth={2} />
+          </IconButton>
+        ) : (
+          <Logo size={26} />
+        )}
         <span className="type-title">Auxilio Visitor</span>
         <span style={{ flex: 1 }} />
         <AccountMenu />
@@ -297,6 +421,47 @@ function RosterSkeleton({ title }: { title?: string }) {
           </div>
         ))}
       </Card>
+    </div>
+  );
+}
+
+function NoticeState({
+  title,
+  body,
+  onRetry,
+  guests,
+}: {
+  title: string;
+  body: string;
+  onRetry?: () => void;
+  guests?: string[];
+}) {
+  return (
+    <div style={{ padding: 'var(--space-lg)', display: 'grid', gap: 'var(--space-md)' }}>
+      <Card style={{ display: 'grid', gap: 'var(--space-sm)', padding: 'var(--space-xl)' }}>
+        <span className="type-title-lg">{title}</span>
+        <span className="type-body text-muted">{body}</span>
+        {onRetry && (
+          <Button
+            variant="tonal"
+            icon={<RefreshCw size={16} strokeWidth={2} />}
+            onClick={onRetry}
+            style={{ justifySelf: 'start', marginTop: 'var(--space-xs)' }}
+          >
+            Check again
+          </Button>
+        )}
+      </Card>
+      {guests && guests.length > 0 && (
+        <Card style={{ display: 'grid', gap: 'var(--space-xs)' }}>
+          <span className="type-label-sm text-muted" style={{ textTransform: 'uppercase' }}>
+            Guests detected on this event
+          </span>
+          {guests.map((g) => (
+            <span key={g} className="type-body row__ellipsis">{g}</span>
+          ))}
+        </Card>
+      )}
     </div>
   );
 }

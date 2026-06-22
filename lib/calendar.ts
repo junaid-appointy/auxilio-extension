@@ -35,6 +35,7 @@ export interface GCalEvent {
   status?: string;
   summary?: string;
   location?: string;
+  description?: string;
   start?: { dateTime?: string; date?: string };
   end?: { dateTime?: string; date?: string };
   organizer?: { email?: string };
@@ -61,6 +62,23 @@ function startOf(ev: GCalEvent): string | undefined {
   return ev.start?.dateTime ?? ev.start?.date;
 }
 
+async function getEvent(
+  calendarId: string,
+  eventId: string,
+  accessToken: string,
+): Promise<Response> {
+  const url = new URL(
+    `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(
+      calendarId,
+    )}/events/${encodeURIComponent(eventId)}`,
+  );
+  url.searchParams.set(
+    'fields',
+    'iCalUID,summary,location,description,start,end,organizer,attendees(email,displayName,resource,self,organizer)',
+  );
+  return fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+}
+
 export async function fetchActiveEvent(
   eid: string,
   accessToken: string,
@@ -68,28 +86,56 @@ export async function fetchActiveEvent(
   const dec = decodeEid(eid);
   if (!dec) throw new Error('Could not read the event id from this page.');
 
-  const url = new URL(
-    `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(
-      dec.calendarId,
-    )}/events/${encodeURIComponent(dec.eventId)}`,
-  );
-  url.searchParams.set(
-    'fields',
-    'iCalUID,summary,location,start,end,organizer,attendees(email,displayName,resource,self,organizer)',
-  );
+  // Recurring chips carry an instance id ("<base>_<ts>"); events.get often 404s
+  // on the instance, so also try the base id. And try `primary` in case the
+  // decoded calendar id isn't directly fetchable.
+  const baseId = dec.eventId.includes('_') ? dec.eventId.split('_')[0] : null;
+  const candidates: { cal: string; id: string }[] = [
+    { cal: dec.calendarId, id: dec.eventId },
+    ...(dec.calendarId !== 'primary' ? [{ cal: 'primary', id: dec.eventId }] : []),
+    ...(baseId ? [{ cal: dec.calendarId, id: baseId }] : []),
+    ...(baseId && dec.calendarId !== 'primary' ? [{ cal: 'primary', id: baseId }] : []),
+  ];
+  console.log('[auxilio] resolve event', { eid, ...dec, candidates });
 
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (!res.ok) {
-    if (res.status === 404) throw new Error('This event was not found on your calendar.');
-    throw new Error(`Calendar API error (${res.status}).`);
+  let res: Response | null = null;
+  let lastStatus = 0;
+  let lastBody = '';
+  for (const c of candidates) {
+    const r = await getEvent(c.cal, c.id, accessToken);
+    if (r.ok) {
+      res = r;
+      break;
+    }
+    lastStatus = r.status;
+    lastBody = await r.text().catch(() => '');
+    console.warn('[auxilio] events.get miss', c, r.status, lastBody.slice(0, 200));
+  }
+
+  if (!res) {
+    console.warn('[auxilio] resolve 404', { ...dec, lastBody: lastBody.slice(0, 200) });
+    if (lastStatus === 404) {
+      // Most common cause: a brand-new event that hasn't been saved yet — it
+      // doesn't exist on Google's servers, so there's nothing to fetch.
+      throw new Error('NOT_SAVED');
+    }
+    throw new Error(`Calendar API error (${lastStatus}). ${lastBody.slice(0, 120)}`);
   }
   const ev = (await res.json()) as GCalEvent;
+  console.log('[auxilio] resolved event', {
+    iCalUID: ev.iCalUID,
+    summary: ev.summary,
+    attendees: ev.attendees?.length ?? 0,
+  });
 
   const attendees = (ev.attendees ?? [])
     .filter((a) => a.email && !a.resource && a.email.toLowerCase() !== MAGIC_ADDRESS)
     .map((a) => ({ email: a.email as string, name: a.displayName }));
+
+  const rooms = (ev.attendees ?? [])
+    .filter((a) => a.resource)
+    .map((a) => a.displayName || a.email || '')
+    .filter(Boolean);
 
   return {
     iCalUid: ev.iCalUID ?? '',
@@ -98,6 +144,8 @@ export async function fetchActiveEvent(
     start: startOf(ev),
     end: ev.end?.dateTime ?? ev.end?.date,
     location: ev.location,
+    description: ev.description,
+    rooms,
     organizerEmail: ev.organizer?.email,
     attendees,
   };

@@ -89,7 +89,7 @@ export interface SendResponse {
   draft: VisitDraft;
 }
 
-/** The active Calendar event the side panel is working on. */
+/** The active Calendar event the side panel is working on (API-authoritative). */
 export interface ActiveEvent {
   iCalUid: string;
   providerEventId?: string;
@@ -97,8 +97,24 @@ export interface ActiveEvent {
   start?: string;
   end?: string;
   location?: string;
+  description?: string;
+  /** Room/resource attendees (resource: true), by display name or email. */
+  rooms?: string[];
   organizerEmail?: string;
   attendees: { email: string; name?: string }[];
+}
+
+/**
+ * Best-effort snapshot read from the open event's DOM by the content script.
+ * Instant + works pre-save, but not authoritative — the API reconciles it.
+ */
+export interface DomEventSnapshot {
+  eid: string;
+  /** Magic address present among the visible guests → a visitor event. */
+  magicPresent: boolean;
+  /** Guest emails scraped from the open surface (may be partial). */
+  guestEmails: string[];
+  title?: string;
 }
 
 export interface AuthStatus {

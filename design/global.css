@@ -207,10 +207,18 @@ body {
   border-radius: 50%;
   background: var(--color-outline);
   transform: translate(0, -50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-primary);
   transition: transform var(--motion-base) var(--motion-emphasized),
     width var(--motion-base) var(--motion-emphasized),
     height var(--motion-base) var(--motion-emphasized),
     background-color var(--motion-base) var(--motion-easing);
+}
+.switch__check {
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--motion-easing);
 }
 .switch[aria-checked='true'] {
   background: var(--color-primary);
@@ -222,6 +230,7 @@ body {
   background: var(--color-on-primary);
   transform: translate(18px, -50%);
 }
+.switch[aria-checked='true'] .switch__check { opacity: 1; }
 .switch:disabled { opacity: 0.5; cursor: default; }
 
 /* ---------- Text field (filled, slim) ---------- */
@@ -249,6 +258,19 @@ body {
 }
 .field__input::placeholder { color: var(--color-outline); }
 select.field__input { cursor: pointer; appearance: none; }
+
+/* leading-icon variant */
+.field__wrap { position: relative; display: flex; align-items: center; }
+.field__icon {
+  position: absolute;
+  left: 10px;
+  display: inline-flex;
+  color: var(--color-on-surface-variant);
+  pointer-events: none;
+}
+.field__input--with-icon { width: 100%; padding-left: 34px; }
+/* keep the icon in step with focus colour */
+.field__wrap:focus-within .field__icon { color: var(--color-primary); }
 
 /* ---------- Icon button ---------- */
 .icon-btn {
@@ -308,6 +330,64 @@ select.field__input { cursor: pointer; appearance: none; }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ---------- Guest (roster) card ---------- */
+.guest {
+  padding: var(--space-md) 0;
+  transition: opacity var(--motion-base) var(--motion-easing);
+}
+.guest + .guest { border-top: 1px solid var(--color-outline-variant); }
+.guest--dim { opacity: 0.6; }
+
+.guest__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.guest__avatar {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+  user-select: none;
+  transition: background-color var(--motion-base) var(--motion-easing),
+    color var(--motion-base) var(--motion-easing);
+}
+.guest__avatar--sent { background: var(--color-success-container); color: var(--color-on-success-container); }
+.guest__avatar--dim { background: var(--color-surface-high); color: var(--color-on-surface-variant); }
+
+.guest__id { flex: 1 1 auto; min-width: 0; }
+.guest__name { display: flex; align-items: center; gap: var(--space-xs); }
+
+/* Inline edit form, recessed under the identity so it reads as "this guest's
+   details" rather than free-floating inputs. Indented to align under the name. */
+.guest__form {
+  display: grid;
+  gap: var(--space-sm);
+  margin: var(--space-sm) 0 var(--space-xs) calc(36px + var(--space-md));
+  padding: var(--space-md);
+  background: var(--color-surface-low);
+  border-radius: var(--radius-md);
+  animation: guest-expand var(--motion-base) var(--motion-easing) both;
+}
+.guest__hint {
+  margin: var(--space-xs) 0 0 calc(36px + var(--space-md));
+  color: var(--color-on-surface-variant);
+  font-weight: 500;
+}
+@keyframes guest-expand {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
 }
 
 /* ---------- Banner (Phase 2 / inline messages) ---------- */

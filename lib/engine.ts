@@ -30,16 +30,46 @@ async function call<T>(
   idToken: string,
   body?: unknown,
 ): Promise<T> {
-  const res = await fetch(`${ADDON_API}/${path}`, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${idToken}`,
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  const url = `${ADDON_API}/${path}`;
+  const started = Date.now();
+  // Abort hung requests so the UI errors instead of spinning forever
+  // (bifrost dev cold-starts + MV3 service-worker lifetime can stall a fetch).
+  const ctrl = new AbortController();
+  const timeout = setTimeout(() => ctrl.abort(), 20_000);
+  console.log('[auxilio] engine →', method, url);
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: ctrl.signal,
+    });
+  } catch (err) {
+    if ((err as Error).name === 'AbortError') {
+      throw new EngineError(
+        `Engine did not respond within 20s (${url}). Is it reachable?`,
+        0,
+      );
+    }
+    throw new EngineError(
+      `Could not reach the engine (${(err as Error).message}). Check WXT_ENGINE_URL / host_permissions.`,
+      0,
+    );
+  } finally {
+    clearTimeout(timeout);
+  }
   const text = await res.text();
-  const data = text ? JSON.parse(text) : {};
+  console.log('[auxilio] engine ←', res.status, `${Date.now() - started}ms`, text.slice(0, 200));
+  let data: { error?: string } = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    if (!res.ok) throw new EngineError(`Engine error ${res.status}: ${text.slice(0, 140)}`, res.status);
+  }
   if (!res.ok) {
     throw new EngineError(data?.error ?? `Request failed (${res.status})`, res.status);
   }

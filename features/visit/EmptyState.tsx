@@ -17,7 +17,7 @@ export function EmptyState({
   auth: AuthStatus | undefined;
   events: VisitorEventSummary[] | undefined;
   loading: boolean;
-  onPick: (eid: string) => void;
+  onPick: (ev: VisitorEventSummary) => void;
 }) {
   if (!auth) {
     return (
@@ -66,7 +66,7 @@ export function EmptyState({
           className="type-label-sm text-muted"
           style={{ textTransform: 'uppercase', marginBottom: 4 }}
         >
-          Upcoming visitor events
+          Visitor events needing passes
         </div>
 
         {loading && !events ? (
@@ -79,7 +79,7 @@ export function EmptyState({
               <button
                 key={ev.eid}
                 className="row"
-                onClick={() => onPick(ev.eid)}
+                onClick={() => onPick(ev)}
                 style={{
                   width: '100%',
                   background: 'transparent',
