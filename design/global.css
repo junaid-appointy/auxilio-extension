@@ -369,17 +369,6 @@ select.field__input { cursor: pointer; appearance: none; }
 .guest__id { flex: 1 1 auto; min-width: 0; }
 .guest__name { display: flex; align-items: center; gap: var(--space-xs); }
 
-/* Inline edit form, recessed under the identity so it reads as "this guest's
-   details" rather than free-floating inputs. Indented to align under the name. */
-.guest__form {
-  display: grid;
-  gap: var(--space-sm);
-  margin: var(--space-sm) 0 var(--space-xs) calc(36px + var(--space-md));
-  padding: var(--space-md);
-  background: var(--color-surface-low);
-  border-radius: var(--radius-md);
-  animation: guest-expand var(--motion-base) var(--motion-easing) both;
-}
 .guest__hint {
   margin: var(--space-xs) 0 0 calc(36px + var(--space-md));
   color: var(--color-on-surface-variant);
@@ -388,6 +377,46 @@ select.field__input { cursor: pointer; appearance: none; }
 @keyframes guest-expand {
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: none; }
+}
+
+/* ---- Guest detail "scroll" drawer ----
+   Full-bleed expandable footer pulled from the card's bottom edge: the negative
+   side margins cancel the roster Card's horizontal padding so the tint runs edge
+   to edge; the negative bottom cancels the guest row's bottom padding so it sits
+   flush. The roster Card sets overflow:hidden, so the tint is clipped to its
+   rounded corners. Collapsed by default → cards stay compact. */
+.guest__drawer {
+  margin: var(--space-sm) calc(-1 * var(--space-lg)) calc(-1 * var(--space-md));
+  background: var(--color-surface-low);
+  border-top: 1px solid var(--color-outline-variant);
+}
+.guest__handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  color: var(--color-primary);
+  padding: 10px var(--space-lg);
+  transition: background-color var(--motion-base) var(--motion-easing);
+}
+.guest__handle:hover { background: var(--color-surface-high); }
+.guest__chev { transition: transform var(--motion-base) var(--motion-easing); }
+.guest__drawer--open .guest__chev { transform: rotate(180deg); }
+
+/* The inputs unroll inside the drawer, padded to the card edges. */
+.guest__form {
+  display: grid;
+  gap: var(--space-sm);
+  padding: var(--space-xs) var(--space-lg) var(--space-md);
+  animation: guest-expand var(--motion-base) var(--motion-easing) both;
 }
 
 /* ---------- Banner (Phase 2 / inline messages) ---------- */

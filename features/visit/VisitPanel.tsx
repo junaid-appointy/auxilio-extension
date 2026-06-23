@@ -296,7 +296,7 @@ export function VisitPanel() {
               No guests on this event yet. Add attendees in Calendar, then reopen.
             </Card>
           ) : (
-            <Card style={{ paddingTop: 0, paddingBottom: 0 }}>
+            <Card style={{ paddingTop: 0, paddingBottom: 0, overflow: 'hidden' }}>
               {data.roster.map((g) => (
                 <RosterRow
                   key={g.email}

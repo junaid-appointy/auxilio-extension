@@ -2,7 +2,7 @@
   "name": "auxilio-extension",
   "description": "Register office visitors directly from a Google Calendar event (desktop Chrome surface for Auxilio / Office Ops).",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.3.0",
   "type": "module",
   "scripts": {
     "dev": "wxt",
