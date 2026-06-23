@@ -47,6 +47,10 @@ npm run zip        # packaged zip for store upload
 
 Env: copy `.env.example` → `.env` (engine URL, OAuth client id, magic address). `WXT_` vars are inlined at build.
 
+## Versioning
+
+**Bump `package.json` `version` on every change you ship to the browser.** WXT syncs it into `manifest.json` automatically, so `chrome://extensions` shows the loaded build's version. This is the check that a reload actually picked up your change — if the card's version doesn't match what you just built, the old bundle is still loaded (reload there and reopen the side panel). Use semver: patch for fixes, minor for features.
+
 ## Deploy / distribution
 
 **Not Bifrost, not EAS.** Internal-first via Chrome admin **force-install** (unlisted, by extension id) or "Load unpacked" for dev. Public later via the Chrome Web Store (payments handled by our own engine; CWS no longer bills).

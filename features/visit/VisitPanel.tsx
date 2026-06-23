@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Clock,
   DoorOpen,
+  ExternalLink,
   Eye,
   RefreshCw,
 } from 'lucide-react';
@@ -117,9 +118,9 @@ export function VisitPanel() {
           events={visitorEvents.data}
           loading={visitorEvents.isLoading}
           onPick={(ev) => {
+            // Just point the panel at the picked event — no tab navigation. Use
+            // "Open in Calendar" in the summary to jump to it explicitly.
             chrome.storage.session.set({ [ACTIVE_EID_KEY]: ev.eid });
-            // Idea 4: also open that event in the same calendar tab.
-            void rpc({ type: 'NAVIGATE_TO_EVENT', eventId: ev.eventId });
           }}
         />
       </Shell>
@@ -243,6 +244,19 @@ export function VisitPanel() {
             >
               {event.description}
             </div>
+          )}
+          {eid && (
+            <Button
+              variant="text"
+              icon={<ExternalLink size={16} strokeWidth={2} />}
+              onClick={() => void rpc({ type: 'NAVIGATE_TO_EVENT', eid })}
+              // Negative left margin = the text button's own horizontal padding,
+              // so the label optically aligns to the card edge while the hit area
+              // and hover state layer stay intact (MD3 text-button placement).
+              style={{ justifySelf: 'start', marginLeft: 'calc(-1 * var(--space-md))' }}
+            >
+              Open in Calendar
+            </Button>
           )}
           <TextField
             label="Where visitors check in"

@@ -1,11 +1,26 @@
 import { Send, X } from 'lucide-react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { Button, IconButton } from '@/design/components';
 import type { PreviewResponse } from '@/lib/types';
 
 /**
+ * Natural layout width the engine email is designed for (a 480px card inside a
+ * full-width wrapper). We render the iframe at this width and scale it down to
+ * the panel so the email never overflows horizontally. A little headroom over
+ * 480 absorbs the default body margins around the card.
+ */
+const EMAIL_WIDTH = 500;
+
+/**
  * Bottom sheet showing the exact branded email (the real engine template,
- * rendered server-side), with Cancel / Send beneath it. The HTML is rendered in
- * a sandboxed iframe (no scripts, no same-origin) so it can't touch the panel.
+ * rendered server-side), with Cancel / Send beneath it.
+ *
+ * The HTML is rendered in an iframe sandboxed with `allow-same-origin` only —
+ * scripts are NOT allowed, so the email stays inert and can't touch the panel;
+ * same-origin just lets us read its rendered size to fit it. We lay the iframe
+ * out at the email's natural width and CSS-scale it down to the panel width, so
+ * the only scrollbar is the sheet's own vertical one (and that disappears too
+ * when the email is short enough to fit).
  */
 export function PreviewSheet({
   preview,
@@ -22,6 +37,37 @@ export function PreviewSheet({
   onSend: () => void;
   onClose: () => void;
 }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  // Width the email lays out at (clamped so we never shrink below the panel).
+  const [contentWidth, setContentWidth] = useState(EMAIL_WIDTH);
+  // Natural rendered height of the email; null until the iframe has loaded.
+  const [contentHeight, setContentHeight] = useState<number | null>(null);
+  // Panel width available for the preview, tracked so we rescale on resize.
+  const [viewportWidth, setViewportWidth] = useState(0);
+
+  const measure = useCallback(() => {
+    const doc = iframeRef.current?.contentDocument;
+    if (doc) {
+      const root = doc.documentElement;
+      setContentWidth(Math.max(EMAIL_WIDTH, root.scrollWidth));
+      setContentHeight(root.scrollHeight);
+    }
+    if (scrollRef.current) setViewportWidth(scrollRef.current.clientWidth);
+  }, []);
+
+  // Keep the scale in sync with the panel width.
+  useLayoutEffect(() => {
+    if (!scrollRef.current) return;
+    setViewportWidth(scrollRef.current.clientWidth);
+    const ro = new ResizeObserver(() => measure());
+    ro.observe(scrollRef.current);
+    return () => ro.disconnect();
+  }, [measure]);
+
+  const scale = viewportWidth > 0 ? Math.min(1, viewportWidth / contentWidth) : 1;
+  const scaledHeight = contentHeight != null ? contentHeight * scale : null;
+
   return (
     <div
       onClick={sending ? undefined : onClose}
@@ -42,7 +88,7 @@ export function PreviewSheet({
           background: 'var(--color-surface-lowest)',
           borderTopLeftRadius: 'var(--radius-xl)',
           borderTopRightRadius: 'var(--radius-xl)',
-          maxHeight: '90%',
+          maxHeight: '94%',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
@@ -68,12 +114,43 @@ export function PreviewSheet({
           </IconButton>
         </header>
 
-        <iframe
-          title="Email preview"
-          sandbox=""
-          srcDoc={preview.html}
-          style={{ border: 'none', width: '100%', flex: 1, minHeight: 280, background: '#fff' }}
-        />
+        <div
+          ref={scrollRef}
+          style={{
+            flex: 1,
+            minHeight: 280,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            background: '#fff',
+          }}
+        >
+          <div
+            style={{
+              width: '100%',
+              // Reserve exactly the scaled height so there's no internal scroll
+              // and no dead space below a short email.
+              height: scaledHeight ?? undefined,
+              overflow: 'hidden',
+            }}
+          >
+            <iframe
+              ref={iframeRef}
+              title="Email preview"
+              sandbox="allow-same-origin"
+              srcDoc={preview.html}
+              onLoad={measure}
+              style={{
+                border: 'none',
+                background: '#fff',
+                display: 'block',
+                width: contentWidth,
+                height: contentHeight ?? 280,
+                transform: `scale(${scale})`,
+                transformOrigin: 'top left',
+              }}
+            />
+          </div>
+        </div>
 
         <footer
           style={{

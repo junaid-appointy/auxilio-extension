@@ -92,15 +92,10 @@ export default defineContentScript({
         }, 3000);
         openFor(snap); // opens the panel + sets the active event
       }
-      // Take the user to the full EDIT screen for this event — but only from a
-      // detail popover, never while already in the editor. On any /eventedit
-      // page (existing OR a brand-new unsaved event, which has no eid in the
-      // URL) a navigation reloads the tab and discards unsaved edits. Guarding
-      // on urlEid() alone missed the new-event case, whose URL carries no eid.
-      const onEditPage = /\/eventedit/.test(location.pathname);
-      if (snap.eid && !onEditPage) {
-        safeSend({ type: 'NAVIGATE_TO_EVENT', eid: snap.eid });
-      }
+      // Note: we intentionally do NOT navigate the tab to the event here. The
+      // panel resolves the event itself (Calendar API), so reloading the page
+      // adds nothing but cost + surprise. "Open in Calendar" in the panel is the
+      // explicit, user-initiated way to jump to the event.
     });
 
     // In-page nudge banner: visitor events the user saved but hasn't acted on.
@@ -155,16 +150,24 @@ export default defineContentScript({
       const isEditor = /\/eventedit/.test(location.pathname);
       if (wasEditor && !isEditor) syncBurst(); // left the editor → likely saved
       wasEditor = isEditor;
+      // Safety net: re-assert the button. The MutationObserver is debounced, so a
+      // continuous scroll (which fires mutations faster than the debounce) can
+      // starve it and never re-run render after Google re-renders the modal and
+      // drops our injected button. This guarantees it comes back within ~1s.
+      render();
     }, 1000);
 
     // Stop all work once our context is invalidated (extension reloaded/updated),
-    // so an orphaned script doesn't keep observing the DOM or polling.
+    // so an orphaned script doesn't keep observing/polling — and remove our now-
+    // dead button (its click can't reach the background) instead of leaving a
+    // zombie that looks live but does nothing.
     let disposed = false;
     function teardown() {
       if (disposed) return;
       disposed = true;
       clearInterval(editorPoll);
       observer.disconnect();
+      button.update(false);
     }
 
     /** Read the open event surface, or null if none is open. `eid` may be '' for
@@ -246,9 +249,7 @@ export default defineContentScript({
       if (!snap || !snap.eid) return; // new/unsaved events don't auto-switch
       if (snap.eid === followedEid) return;
       followedEid = snap.eid;
-      chrome.runtime
-        .sendMessage({ type: 'FOLLOW_EVENT', eid: snap.eid, snapshot: snap })
-        .catch(() => {});
+      safeSend({ type: 'FOLLOW_EVENT', eid: snap.eid, snapshot: snap });
     }
 
     document.addEventListener(
@@ -385,6 +386,7 @@ const INJECT_ID = 'auxilio-manage-visitors';
 function createButtonUI(onClick: () => void) {
   const fab = mountFloating(onClick);
   let injected: HTMLElement | null = null;
+  let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
   // A clean injection anchor: where to drop the button + how far to indent it so
   // it lines up with the section's content column (past Google's icon gutter).
@@ -459,13 +461,28 @@ function createButtonUI(onClick: () => void) {
     // at the corner while a navigated page is still loading. So callers pass
     // false when the panel is open.
     update(show: boolean, allowFab = true) {
+      clearTimeout(retryTimer);
       if (!show) {
         removeInjected();
         fab.setVisible(false);
         return;
       }
-      const placed = ensureInjected();
-      fab.setVisible(allowFab && !placed); // floating only when we couldn't inject natively
+      // Try to inject now; if the anchor isn't in the DOM / laid out yet (Google
+      // is still rendering the surface), keep retrying for a few seconds. The
+      // MutationObserver covers DOM changes, but layout can settle — giving
+      // elements their width — without a childList mutation, so width-based
+      // anchor checks can miss that window. This retry guarantees we don't.
+      let attempts = 0;
+      const attempt = () => {
+        const placed = ensureInjected();
+        // Show the floating fallback only after a short grace period, so on a
+        // normally-rendering surface the native button just appears — no flash
+        // of the FAB getting replaced a moment later.
+        fab.setVisible(allowFab && !placed && attempts >= 3);
+        if (placed || attempts++ >= 30) return;
+        retryTimer = setTimeout(attempt, 150);
+      };
+      attempt();
     },
   };
 }
@@ -738,7 +755,12 @@ function shieldPadding(row: HTMLElement) {
 /** Floating fallback button (shadow-DOM, fully isolated). */
 function mountFloating(onClick: () => void) {
   const host = document.createElement('div');
-  host.style.cssText = 'position:fixed;right:24px;bottom:24px;z-index:2147483646;';
+  // pointer-events:none so the host box never eats clicks on what's beneath it when
+  // the FAB is hidden — the inner button is display:inline-flex even when invisible, so
+  // the host keeps a bounding box at bottom-right that would otherwise sit over (and
+  // swallow clicks for) Google's own bottom drawer buttons (e.g. the event-edit add-on
+  // drawer's "View"). The shown button re-enables hits via `.fab.show{pointer-events:auto}`.
+  host.style.cssText = 'position:fixed;right:24px;bottom:24px;z-index:2147483646;pointer-events:none;';
   document.documentElement.appendChild(host);
   const root = host.attachShadow({ mode: 'open' });
   root.innerHTML = `
@@ -808,8 +830,12 @@ const NUDGE_X_SVG = `
  */
 function mountNudge() {
   const host = document.createElement('div');
+  // pointer-events:none so the (always-present) host box doesn't swallow clicks on the
+  // Calendar UI beneath it while the banner is hidden — the banner is display:flex even
+  // when invisible, so the host keeps a box at top-center. `.banner.show{pointer-events:auto}`
+  // restores hits when it's actually shown.
   host.style.cssText =
-    'position:fixed;top:72px;left:50%;transform:translateX(-50%);z-index:2147483647;';
+    'position:fixed;top:72px;left:50%;transform:translateX(-50%);z-index:2147483647;pointer-events:none;';
   document.documentElement.appendChild(host);
   const root = host.attachShadow({ mode: 'open' });
   root.innerHTML = `
@@ -917,10 +943,10 @@ function mountNudge() {
     // Set the active event FIRST (storage.session, now content-accessible) so the
     // panel has it the moment it mounts — no dependence on message ordering.
     safeStorageSet({ [ACTIVE_EID_KEY]: target.eid, [ACTIVE_SNAPSHOT_KEY]: null });
-    // Open the panel immediately within this gesture (don't await first).
-    safeSend({ type: 'OPEN_FOR_EVENT', eid: target.eid });
-    // Bring this tab to the event's edit page (prefer the real eid when present).
-    safeSend({ type: 'NAVIGATE_TO_EVENT', eid: target.eid, eventId: target.eventId }).finally(() => {
+    // Open the panel within this gesture. We don't navigate the tab — the panel
+    // resolves the event on its own; "Open in Calendar" there is the explicit way
+    // to jump to it.
+    safeSend({ type: 'OPEN_FOR_EVENT', eid: target.eid }).finally(() => {
       manageBtn.disabled = false;
       manageBtn.textContent = 'Manage';
     });
