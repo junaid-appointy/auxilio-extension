@@ -17,7 +17,6 @@ import {
   Logo,
   SelectField,
   Skeleton,
-  TextField,
 } from '@/design/components';
 import {
   ACTIVE_EID_KEY,
@@ -68,7 +67,12 @@ export function VisitPanel() {
     preview: PreviewResponse;
     recipient: string;
   } | null>(null);
-  const [location, setLocation] = useState<string | null>(null);
+  // Tracks host edits the roster can't otherwise reveal — a name/phone change or
+  // template switch on an already-issued event leaves no structural delta, so we
+  // remember "the host touched something" to keep the update button live. Reset
+  // when the event changes or a send succeeds (the draft then reflects reality).
+  const [edited, setEdited] = useState(false);
+  useEffect(() => setEdited(false), [event?.iCalUid]);
 
   // Guard 1: hold the current event while sending / previewing; catch up once idle.
   const busy = send.isPending || preview.isPending || !!previewData;
@@ -157,7 +161,7 @@ export function VisitPanel() {
       <Shell onBack={back}>
         <NoticeState
           title="Can’t register from this event"
-          body="This event has no calendar UID yet — usually because it isn’t fully saved. Save it in Google Calendar and try again."
+          body="This event has no calendar UID yet. This usually means it is not fully saved. Save it in Google Calendar and try again."
           onRetry={() => resolve.refetch()}
         />
       </Shell>
@@ -177,7 +181,17 @@ export function VisitPanel() {
   const data = draft.data;
   const included = data.roster.filter((g) => g.include);
   const sentCount = data.roster.filter((g) => g.status === 'sent').length;
-  const locValue = location ?? data.location ?? '';
+
+  // What's actually pending. A new/uninvited guest still to get a pass, or a sent
+  // guest toggled off (a pending revoke), is a structural change visible in the
+  // roster. Name/phone/template edits aren't — `edited` covers those.
+  const pendingNew = data.roster.filter(
+    (g) => g.include && g.status !== 'sent' && g.status !== 'cancelled',
+  );
+  const pendingCancel = data.roster.filter((g) => g.status === 'sent' && !g.include);
+  const hasChanges = pendingNew.length > 0 || pendingCancel.length > 0 || edited;
+  // Already-issued event with literally nothing to do → no point re-sending.
+  const nothingToDo = data.materialized && !hasChanges;
 
   const templates = data.emailTemplates;
   // One template for the whole event (engine stores per-guest; we set all guests
@@ -187,11 +201,15 @@ export function VisitPanel() {
     templates.find((t) => t.isDefault)?.key ??
     templates[0]?.key;
 
-  const patchGuest = (email: string, edit: Record<string, unknown>) =>
+  const patchGuest = (email: string, edit: Record<string, unknown>) => {
+    setEdited(true);
     patch.mutate({ guests: [{ email, ...edit }] });
+  };
 
-  const setEventTemplate = (key: string) =>
+  const setEventTemplate = (key: string) => {
+    setEdited(true);
     patch.mutate({ guests: data.roster.map((g) => ({ email: g.email, emailTemplateKey: key })) });
+  };
 
   // Review & send: render the real email for a representative included guest,
   // then Send/Cancel from the preview.
@@ -203,19 +221,15 @@ export function VisitPanel() {
     });
   };
 
-  const canSend = (included.length > 0 || data.materialized) && !send.isPending;
+  // First send needs at least one included guest; an already-issued event needs a
+  // real pending change — otherwise the button is irrelevant and stays disabled.
+  const canSend =
+    !send.isPending && (data.materialized ? hasChanges : included.length > 0);
   const reviewLabel = data.materialized ? 'Review & update passes' : 'Review & send passes';
 
   return (
     <Shell onBack={back}>
       <div className="enter" style={{ padding: 'var(--space-lg)', display: 'grid', gap: 'var(--space-lg)' }}>
-        <div
-          className="type-label-sm text-muted"
-          style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-        >
-          <Eye size={13} strokeWidth={2} />
-          Following the event open in Calendar
-        </div>
         {/* Event summary */}
         <Card style={{ display: 'grid', gap: 'var(--space-sm)' }}>
           <div className="type-title-lg">{event?.title || 'Untitled event'}</div>
@@ -258,15 +272,6 @@ export function VisitPanel() {
               Open in Calendar
             </Button>
           )}
-          <TextField
-            label="Where visitors check in"
-            value={locValue}
-            placeholder="e.g. Front desk, 3rd floor"
-            onChange={(e) => setLocation(e.target.value)}
-            onBlur={() =>
-              locValue !== (data.location ?? '') && patch.mutate({ location: locValue })
-            }
-          />
           {templates.length >= 2 && (
             <SelectField
               label="Email template (all guests)"
@@ -296,7 +301,7 @@ export function VisitPanel() {
               No guests on this event yet. Add attendees in Calendar, then reopen.
             </Card>
           ) : (
-            <Card style={{ paddingTop: 0, paddingBottom: 0, overflow: 'hidden' }}>
+            <div className="roster">
               {data.roster.map((g) => (
                 <RosterRow
                   key={g.email}
@@ -304,7 +309,7 @@ export function VisitPanel() {
                   onChange={(edit) => patchGuest(g.email, edit)}
                 />
               ))}
-            </Card>
+            </div>
           )}
         </section>
 
@@ -326,6 +331,16 @@ export function VisitPanel() {
           background: 'var(--color-surface-lowest)',
         }}
       >
+        {nothingToDo && (
+          <div
+            className="banner banner--info"
+            role="status"
+            style={{ marginBottom: 'var(--space-sm)' }}
+          >
+            <CheckCircle2 size={18} strokeWidth={2} style={{ flex: '0 0 auto' }} />
+            <span className="type-body">Up to date. No changes to send.</span>
+          </div>
+        )}
         <Button
           block
           loading={preview.isPending}
@@ -342,7 +357,7 @@ export function VisitPanel() {
             {(preview.error as Error).message}
           </div>
         )}
-        {sentCount > 0 && !send.isPending && (
+        {sentCount > 0 && !send.isPending && !nothingToDo && (
           <div className="type-label-sm text-muted" style={{ textAlign: 'center', marginTop: 6 }}>
             {sentCount} pass{sentCount > 1 ? 'es' : ''} already issued
           </div>
@@ -356,7 +371,12 @@ export function VisitPanel() {
           totalCount={included.length}
           sending={send.isPending}
           onSend={() =>
-            send.mutate(undefined, { onSuccess: () => setPreviewData(null) })
+            send.mutate(undefined, {
+              onSuccess: () => {
+                setPreviewData(null);
+                setEdited(false);
+              },
+            })
           }
           onClose={() => setPreviewData(null)}
         />
@@ -511,7 +531,9 @@ function SendSummary({
         <div className="type-label">
           {result.created.length > 0
             ? `${result.created.length} pass${result.created.length > 1 ? 'es' : ''} sent`
-            : 'Passes updated'}
+            : result.cancelled.length > 0
+              ? 'Passes updated'
+              : 'No changes'}
           {result.cancelled.length > 0 && ` · ${result.cancelled.length} cancelled`}
         </div>
         {result.failed.length > 0 && (
@@ -534,5 +556,5 @@ function formatWhen(start: string, end?: string): string {
   const date = s.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
   if (allDay) return `${date} · All day`;
   const t = (d: Date) => d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-  return end ? `${date} · ${t(s)}–${t(new Date(end))}` : `${date} · ${t(s)}`;
+  return end ? `${date} · ${t(s)} to ${t(new Date(end))}` : `${date} · ${t(s)}`;
 }

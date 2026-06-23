@@ -105,4 +105,7 @@ export const engine = {
       idToken,
       { iCalUid, invitationId },
     ),
+
+  connectCalendar: (idToken: string, code: string, redirectUri: string) =>
+    call<{ connected: boolean }>('connect-calendar', 'POST', idToken, { code, redirectUri }),
 };

@@ -332,12 +332,24 @@ select.field__input { cursor: pointer; appearance: none; }
   white-space: nowrap;
 }
 
-/* ---------- Guest (roster) card ---------- */
-.guest {
-  padding: var(--space-md) 0;
-  transition: opacity var(--motion-base) var(--motion-easing);
+/* ---------- Guest (roster) card ----------
+   Each guest is its own self-contained card, separated by a gap from the next —
+   so a host scans the roster as distinct people, not rows blurring together.
+   overflow:hidden clips the detail drawer's full-bleed tint to the rounded
+   corners. */
+.roster {
+  display: grid;
+  gap: var(--space-md);
 }
-.guest + .guest { border-top: 1px solid var(--color-outline-variant); }
+.guest {
+  background: var(--color-surface-lowest);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  padding: var(--space-md) var(--space-lg);
+  transition: opacity var(--motion-base) var(--motion-easing),
+    box-shadow var(--motion-fast) var(--motion-easing);
+}
 .guest--dim { opacity: 0.6; }
 
 .guest__head {
@@ -367,7 +379,11 @@ select.field__input { cursor: pointer; appearance: none; }
 .guest__avatar--dim { background: var(--color-surface-high); color: var(--color-on-surface-variant); }
 
 .guest__id { flex: 1 1 auto; min-width: 0; }
-.guest__name { display: flex; align-items: center; gap: var(--space-xs); }
+/* Name shrinks + ellipsizes; status chips ("Pass sent" / "Will cancel") never
+   shrink, so a long name/email can't squash or wrap the pill. */
+.guest__name { display: flex; align-items: center; gap: var(--space-xs); min-width: 0; }
+.guest__name .row__ellipsis { flex: 0 1 auto; min-width: 0; }
+.guest__name .chip { flex: 0 0 auto; }
 
 .guest__hint {
   margin: var(--space-xs) 0 0 calc(36px + var(--space-md));

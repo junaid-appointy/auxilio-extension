@@ -137,7 +137,7 @@ export function RosterRow({
       ) : (
         !guest.include &&
         !cancelled && (
-          <div className="guest__hint type-label-sm">Won’t receive a pass — toggle on to invite</div>
+          <div className="guest__hint type-label-sm">Will not receive a pass. Toggle on to invite.</div>
         )
       )}
     </div>

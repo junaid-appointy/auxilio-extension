@@ -130,4 +130,8 @@ export interface VisitorEventSummary {
   iCalUid: string;
   title: string;
   start?: string;
+  /** Parent series id for a recurring instance (else the event's own id). Lets a
+   *  recurring series be treated as one nudge unit — one badge, one notification,
+   *  one picker row showing the soonest pending occurrence. */
+  seriesId?: string;
 }

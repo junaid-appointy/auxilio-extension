@@ -20,6 +20,7 @@ export type RpcRequest =
   | { type: 'AUTH_STATUS' }
   | { type: 'AUTH_SIGN_IN' }
   | { type: 'AUTH_SIGN_OUT' }
+  | { type: 'OPEN_PANEL' }
   | { type: 'OPEN_FOR_EVENT'; eid: string; snapshot?: DomEventSnapshot }
   | { type: 'FOLLOW_EVENT'; eid: string; snapshot?: DomEventSnapshot }
   | { type: 'RESOLVE_EVENT'; eid: string }
@@ -39,6 +40,7 @@ export interface RpcResultMap {
   AUTH_STATUS: AuthStatus;
   AUTH_SIGN_IN: AuthStatus;
   AUTH_SIGN_OUT: { signedIn: false };
+  OPEN_PANEL: { opened: boolean };
   OPEN_FOR_EVENT: { opened: boolean };
   FOLLOW_EVENT: { followed: boolean };
   RESOLVE_EVENT: ActiveEvent;
@@ -99,6 +101,11 @@ export const SIDEPANEL_PORT = 'auxilio.sidepanel';
 /** Background→content broadcast of the visitor events needing passes (drives the
  *  in-page nudge banner). */
 export const NUDGE_TARGETS = '__auxilio_nudge_targets';
+
+/** Background→content broadcast: a recoverable auth lapse (the user was connected
+ *  but a silent token renew failed). Drives the in-page "Reconnect Auxilio" banner
+ *  so nudging never dies silently. `lapsed:false` clears it once renew succeeds. */
+export const AUTH_LAPSED = '__auxilio_auth_lapsed';
 
 /** One-way background→panel broadcast: the active event changed on the server
  *  (post-save), so the panel should refetch. Not an RPC (no response). */

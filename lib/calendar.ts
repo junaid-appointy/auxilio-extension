@@ -36,6 +36,9 @@ export interface GCalEvent {
   summary?: string;
   location?: string;
   description?: string;
+  /** Present on instances of a recurring series (with singleEvents=true): the id
+   *  of the parent series. Lets us treat a series as one nudge unit. */
+  recurringEventId?: string;
   start?: { dateTime?: string; date?: string };
   end?: { dateTime?: string; date?: string };
   organizer?: { email?: string };
@@ -156,6 +159,16 @@ export async function fetchActiveEvent(
  * since last sync; without → an initial window of upcoming events (and a fresh
  * token). Paginates to capture nextSyncToken. Returns expired:true on a 410 so
  * the caller can full-resync.
+ *
+ * KNOWN LIMITATION (deferred by decision): primary calendar only. A visitor event
+ * a host creates on a *secondary* calendar they own gets no sync-driven nudge
+ * (badge/notification/banner) — the optimistic DOM path still fires if they open
+ * it. Covering owned secondaries needs the calendar.calendarlist.readonly scope
+ * (to discover them via calendarList.list) plus a per-calendar sync token. We
+ * deferred this: the gap is unobserved and the extra scope/poll cost isn't worth
+ * a maybe. Revisit only on a real report of a missed secondary-calendar event,
+ * and when doing so, hard-filter to accessRole=owner (never poll subscribed/
+ * holiday calendars).
  */
 export async function listEvents(
   accessToken: string,
@@ -174,7 +187,7 @@ export async function listEvents(
     url.searchParams.set('maxResults', '250');
     url.searchParams.set(
       'fields',
-      'items(id,iCalUID,status,summary,location,start,end,attendees(email,resource)),nextPageToken,nextSyncToken',
+      'items(id,iCalUID,status,summary,location,recurringEventId,start,end,attendees(email,resource)),nextPageToken,nextSyncToken',
     );
     if (opts.syncToken) {
       url.searchParams.set('syncToken', opts.syncToken);

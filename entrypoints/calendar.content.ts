@@ -14,6 +14,7 @@ import { MAGIC_ADDRESS } from '@/lib/config';
 import {
   ACTIVE_EID_KEY,
   ACTIVE_SNAPSHOT_KEY,
+  AUTH_LAPSED,
   NUDGE_TARGETS,
   PANEL_STATE,
 } from '@/lib/messaging';
@@ -68,7 +69,9 @@ export default defineContentScript({
     let clickedEid: string | null = null;
     let lastSnapshot: DomEventSnapshot | null = null;
     let panelOpen = false;
-    let opening = false; // an OPEN_FOR_EVENT is in flight (panel not yet connected)
+    // The dialog node we've accepted as an event surface. Held so recognition is
+    // sticky for the life of that node (see readSurface) — kills the button flicker.
+    let eventDialog: HTMLElement | null = null;
     let followedEid: string | null = null; // last event auto-pushed to the panel
     let pendingMagic: { eid: string; eventId: string; title: string } | null = null;
     let everSawEventId = false;
@@ -78,20 +81,14 @@ export default defineContentScript({
     // shows on any open event surface; clicking it IS the intent.
     const button = createButtonUI(() => {
       if (!lastSnapshot) return;
-      const snap = lastSnapshot;
-      // Sanity guard: only OPEN the panel when it isn't already open (or
-      // mid-open). If it's open, just point it at this event — clicking the
-      // button again never fires a second sidePanel.open.
-      if (panelOpen || opening) {
-        followFor(snap);
-      } else {
-        opening = true;
-        // Clear the latch if the panel never connects (open blocked/failed).
-        setTimeout(() => {
-          opening = false;
-        }, 3000);
-        openFor(snap); // opens the panel + sets the active event
-      }
+      // Always hand the click to the background as OPEN_FOR_EVENT. The
+      // background is the single authority on whether the panel is connected
+      // (it owns the panel's port): it calls sidePanel.open only when the panel
+      // is closed, and otherwise just points the open panel at this event. We
+      // deliberately do NOT branch on a local panelOpen/opening flag here — those
+      // drift out of sync (a missed PANEL_STATE, or a failed open leaving a latch
+      // stuck) and were the reason a click sometimes silently did nothing.
+      openFor(lastSnapshot);
       // Note: we intentionally do NOT navigate the tab to the event here. The
       // panel resolves the event itself (Calendar API), so reloading the page
       // adds nothing but cost + surprise. "Open in Calendar" in the panel is the
@@ -107,12 +104,18 @@ export default defineContentScript({
       },
     );
 
+    // Reconnect banner: shown when the background reports a recoverable auth lapse
+    // (the user was connected but a silent token renew failed), so nudging never
+    // dies silently. The background broadcasts AUTH_LAPSED on each sync.
+    const reconnect = mountReconnect(() => safeSend({ type: 'OPEN_PANEL' }));
+
     // Seed the panel-open state on (re)load so auto-follow works after a
     // same-tab navigation (the panel persists; this content script is fresh).
     safeSend<{ ok?: boolean; data?: { open: boolean } }>({ type: 'GET_PANEL_STATE' }).then((res) => {
       if (res?.ok) {
         panelOpen = !!res.data?.open;
         nudge.setPanelOpen(panelOpen);
+        reconnect.setPanelOpen(panelOpen);
         render();
       }
     });
@@ -175,6 +178,25 @@ export default defineContentScript({
     function readSurface(): { el: HTMLElement; eid: string } | null {
       const fromUrl = urlEid();
       const dialog = document.querySelector('[role="dialog"]') as HTMLElement | null;
+      // A dialog that isn't an event surface — e.g. Google's "Send update emails
+      // to existing guests?" save confirmation — must NEVER host our button, and
+      // while one is open we suppress entirely so we don't inject onto it (or
+      // behind it, over the editor). This is what kept the button appearing on
+      // unrelated dialogs and "flashing" away when such a dialog opened/closed.
+      if (dialog) {
+        // Sticky recognition: once a dialog node is accepted as an event
+        // surface, keep treating it as one until it actually leaves the DOM.
+        // Google re-renders the popover's innards constantly; isEventDialog is a
+        // heuristic, so a single tick where it momentarily reads false would
+        // otherwise yank the button and pop it back a frame later — the flicker.
+        // A genuinely different dialog (a confirmation) is a different node, so
+        // it's still evaluated strictly and correctly rejected.
+        const isEvent = dialog === eventDialog || isEventDialog(dialog);
+        if (!isEvent) return null;
+        eventDialog = dialog;
+      } else {
+        eventDialog = null;
+      }
       if (fromUrl) {
         return { el: dialog ?? document.body, eid: fromUrl };
       }
@@ -197,12 +219,23 @@ export default defineContentScript({
       const guestEmails = extractEmails(text).filter(
         (e) => e.toLowerCase() !== MAGIC_ADDRESS,
       );
-      // Best-effort title (cosmetic — the API sync replaces it). The editor's
-      // title is a text input; fall back to undefined.
+      // Best-effort title (cosmetic — the API sync replaces it). The full editor
+      // exposes the title as a text input; the detail popover (the common case)
+      // shows it as a heading, not an input — so fall back to the open dialog's
+      // heading / accessible name. Scoped to the dialog so we never grab the
+      // page's own H1 ("Calendar") when no event surface is open.
       const titleInput = el.querySelector(
         'input[aria-label*="title" i], input[placeholder*="title" i]',
       ) as HTMLInputElement | null;
-      const title = titleInput?.value?.trim() || undefined;
+      const dialog = el.matches?.('[role="dialog"]')
+        ? el
+        : el.querySelector<HTMLElement>('[role="dialog"]');
+      const heading = dialog?.querySelector<HTMLElement>('[role="heading"], h1, h2');
+      const title =
+        titleInput?.value?.trim() ||
+        heading?.innerText?.trim() ||
+        dialog?.getAttribute('aria-label')?.trim() ||
+        undefined;
       return { eid, magicPresent, guestEmails, title };
     }
 
@@ -232,12 +265,14 @@ export default defineContentScript({
         pendingMagic = null;
       }
 
-      // Show the button on any open event surface — including while the panel
-      // is open, so it stays available as an explicit "show this event" control.
-      // Suppress the floating fallback while the panel is open: it's redundant
-      // (auto-follow handles the viewed event) and would flash at the corner
-      // while a navigated edit page is still loading.
-      button.update(!!surface, !panelOpen);
+      // Show the button on any open event surface — including while the panel is
+      // open. We keep the floating fallback available even then: a missing button
+      // reads as broken (the user's report), and the native in-popover button can
+      // lose the first-open injection race. The grace period in update() still
+      // lets the native button win whenever it injects in time, so the FAB only
+      // appears as a genuine last resort. (We no longer navigate the tab on click,
+      // so the old "flash while a navigated page loads" concern is moot.)
+      button.update(!!surface);
       if (panelOpen) maybeFollow();
     }
 
@@ -261,7 +296,11 @@ export default defineContentScript({
           everSawEventId = true;
           clickedEid = id;
         }
-        setTimeout(render, 60); // let the popover render
+        // Re-check a few times: Google paints the popover progressively, so a
+        // single 60ms probe can land before the surface (or its rows) exist,
+        // and we'd then wait up to a second for the safety-net poll. Staggered
+        // probes catch a slow paint quickly; render() is idempotent + cheap.
+        for (const d of [60, 250, 600]) setTimeout(render, d);
       },
       true,
     );
@@ -299,15 +338,18 @@ export default defineContentScript({
         open?: boolean;
         targets?: VisitorEventSummary[];
         cancelled?: string[];
+        lapsed?: boolean;
       }) => {
         if (msg?.type === PANEL_STATE) {
           panelOpen = !!msg.open;
-          if (panelOpen) opening = false; // connected → clear the open latch
           if (!panelOpen) followedEid = null; // re-follow next time it opens
           nudge.setPanelOpen(panelOpen); // banner hides while the panel is open
+          reconnect.setPanelOpen(panelOpen);
           render();
         } else if (msg?.type === NUDGE_TARGETS) {
           nudge.setTargets(msg.targets ?? [], msg.cancelled ?? []);
+        } else if (msg?.type === AUTH_LAPSED) {
+          reconnect.setLapsed(!!msg.lapsed);
         }
       },
     );
@@ -327,11 +369,6 @@ export default defineContentScript({
 
 function openFor(snapshot: DomEventSnapshot) {
   return safeSend({ type: 'OPEN_FOR_EVENT', eid: snapshot.eid, snapshot });
-}
-
-/** Point the already-open panel at an event without re-opening it. */
-function followFor(snapshot: DomEventSnapshot) {
-  return safeSend({ type: 'FOLLOW_EVENT', eid: snapshot.eid, snapshot });
 }
 
 /** Event id from the expanded-edit URL path, if present. */
@@ -485,6 +522,22 @@ function createButtonUI(onClick: () => void) {
       attempt();
     },
   };
+}
+
+/**
+ * Is this open `[role="dialog"]` an actual event surface (detail popover / quick
+ * edit), rather than one of Google's transient confirmation dialogs — e.g.
+ * "Send update emails to existing Google Calendar guests?" or "Delete this
+ * event?" — which we must not decorate? Positive, stable signals only: an event
+ * chip id, the magic address in its text, or several icon-led section rows
+ * (time / guests / location). A confirmation dialog is just a question plus a
+ * row of action buttons, so it matches none of these.
+ */
+function isEventDialog(dialog: HTMLElement): boolean {
+  if (dialog.querySelector('[data-eventid]')) return true;
+  const text = (dialog.innerText || '').toLowerCase();
+  if (MAGIC_ADDRESS && text.includes(MAGIC_ADDRESS)) return true;
+  return !!findContentList(dialog);
 }
 
 /** Find a clickable element whose visible text matches (case-insensitive). */
@@ -995,4 +1048,81 @@ function escapeText(s: string): string {
   const d = document.createElement('div');
   d.textContent = s;
   return d.innerHTML;
+}
+
+const PLUG_SVG = `
+<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+  fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/>
+  <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/></svg>`;
+
+/**
+ * In-page reconnect banner: shown when the background reports a recoverable auth
+ * lapse (the user was connected but a silent token renew failed). Without it the
+ * whole nudge mechanism goes dark silently. "Reconnect" opens the side panel onto
+ * the sign-in gate. Hidden while the panel is open (the gate is right there).
+ */
+function mountReconnect(onReconnect: () => void) {
+  const host = document.createElement('div');
+  // Sits just below the nudge banner's slot; pointer-events:none while hidden so
+  // it never swallows clicks on the Calendar UI beneath it.
+  host.style.cssText =
+    'position:fixed;top:120px;left:50%;transform:translateX(-50%);z-index:2147483647;pointer-events:none;';
+  document.documentElement.appendChild(host);
+  const root = host.attachShadow({ mode: 'open' });
+  root.innerHTML = `
+    <style>
+      :host { all: initial; }
+      .banner {
+        display:flex;align-items:center;gap:12px;max-width:520px;
+        font-family:'Google Sans','Roboto',system-ui,sans-serif;color:#410002;
+        background:#fcdad6;border:1px solid #b3261e33;border-radius:14px;
+        padding:10px 12px 10px 16px;box-shadow:0 4px 12px rgba(0,0,0,.18);
+        transform:translateY(-12px);opacity:0;pointer-events:none;
+        transition:opacity 200ms cubic-bezier(.2,0,0,1),transform 200ms cubic-bezier(.2,0,0,1);
+      }
+      .banner.show{opacity:1;transform:none;pointer-events:auto;}
+      .icon{display:inline-flex;color:#b3261e;flex:0 0 auto;}
+      .text{font-size:13.5px;line-height:18px;}
+      .text b{font-weight:600;}
+      .reconnect{font:inherit;font-size:13px;font-weight:600;color:#fff;background:#b3261e;
+        border:none;border-radius:999px;padding:8px 14px;cursor:pointer;flex:0 0 auto;}
+      .reconnect:hover{box-shadow:0 2px 6px rgba(0,0,0,.2);}
+      @media (prefers-reduced-motion: reduce){.banner{transition:none;transform:none;}}
+    </style>
+    <div class="banner">
+      <span class="icon">${PLUG_SVG}</span>
+      <span class="text"><b>Auxilio needs to reconnect.</b> Visitor nudges are paused until you sign in again.</span>
+      <button class="reconnect" type="button">Reconnect</button>
+    </div>`;
+  const wrap = root.querySelector('.banner') as HTMLDivElement;
+  const btn = root.querySelector('.reconnect') as HTMLButtonElement;
+  shieldInteractions(host);
+
+  let lapsed = false;
+  let panelOpen = false;
+  function render() {
+    wrap.classList.toggle('show', lapsed && !panelOpen);
+  }
+
+  // pointerup (not click): the host's capture-phase shield would swallow click.
+  btn.addEventListener('pointerup', () => {
+    btn.disabled = true;
+    btn.textContent = 'Opening…';
+    Promise.resolve(onReconnect()).finally(() => {
+      btn.disabled = false;
+      btn.textContent = 'Reconnect';
+    });
+  });
+
+  return {
+    setLapsed(v: boolean) {
+      lapsed = v;
+      render();
+    },
+    setPanelOpen(open: boolean) {
+      panelOpen = open;
+      render();
+    },
+  };
 }

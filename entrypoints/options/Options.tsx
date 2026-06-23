@@ -72,7 +72,7 @@ export default function Options() {
           Open a Google Calendar event and use the side panel to register visitors.
           Events that include the magic address show an automatic banner; any other
           event shows a “Register a visitor” button. Visitor data, passes, and email
-          all live in the engine — this extension is just the desktop surface.
+          all live in the engine. This extension is just the desktop surface.
         </span>
       </Card>
     </div>

@@ -1,6 +1,7 @@
 import {
   ACTIVE_EID_KEY,
   ACTIVE_SNAPSHOT_KEY,
+  AUTH_LAPSED,
   NUDGE_TARGETS,
   PANEL_STATE,
   SIDEPANEL_PORT,
@@ -8,14 +9,17 @@ import {
   type RpcRequest,
   type RpcResponse,
 } from '@/lib/messaging';
-import { authStatus, getValidTokens, signIn, signOut } from '@/lib/auth';
+import { authStatus, getValidTokens, signIn, signOut, wasConnected } from '@/lib/auth';
 import { decodeEid, encodeEid, fetchActiveEvent } from '@/lib/calendar';
-import { listMarked, runSync } from '@/lib/calendar-sync';
+import { clearSyncToken, listMarked, markHandled, runSync } from '@/lib/calendar-sync';
 import { EngineError, engine } from '@/lib/engine';
 import type { VisitorEventSummary } from '@/lib/types';
 
 const SYNC_ALARM = 'auxilio-sync';
 const BADGE_COLOR = '#92288E';
+// Muted/error badge for a recoverable auth lapse — visually distinct from the
+// brand-tinted visitor-count badge so "nudging is offline" never reads as a count.
+const LAPSED_BADGE_COLOR = '#B3261E';
 
 // Whether the side panel is currently open (a port is connected). Content
 // scripts ask for this on (re)load so auto-follow works after navigation.
@@ -35,9 +39,13 @@ export default defineBackground(() => {
 
   // Durable, official change-detection: poll on an alarm (no DOM).
   chrome.alarms.create(SYNC_ALARM, { periodInMinutes: 1 });
-  chrome.runtime.onInstalled.addListener(() =>
-    chrome.alarms.create(SYNC_ALARM, { periodInMinutes: 1 }),
-  );
+  chrome.runtime.onInstalled.addListener(() => {
+    chrome.alarms.create(SYNC_ALARM, { periodInMinutes: 1 });
+    // Re-scan from scratch on install/update: a config change (e.g. the magic
+    // address) only takes effect on a full sync, since incremental never
+    // re-reports an already-consumed change. clearSyncToken forces that.
+    void clearSyncToken().then(() => doSync());
+  });
   chrome.runtime.onStartup.addListener(() => void doSync());
   chrome.alarms.onAlarm.addListener((a) => {
     if (a.name === SYNC_ALARM) void doSync();
@@ -74,7 +82,11 @@ async function doSync(): Promise<void> {
   try {
     accessToken = (await getValidTokens()).accessToken;
   } catch {
-    return; // not signed in — nothing to poll
+    // Token unavailable. If the user was connected, this is a recoverable lapse
+    // (storage.session wiped on restart, or silent renew failed) — surface it so
+    // nudging never dies silently. If they never connected, stay quiet.
+    if (await wasConnected()) await setLapsed(true);
+    return;
   }
   let result;
   try {
@@ -83,6 +95,9 @@ async function doSync(): Promise<void> {
     console.warn('[auxilio] sync failed', err);
     return;
   }
+
+  // Got here with working tokens → any prior lapse is over.
+  await setLapsed(false);
 
   // Toolbar badge = number of upcoming visitor events (the on-icon nudge).
   await chrome.action.setBadgeBackgroundColor({ color: BADGE_COLOR });
@@ -115,6 +130,26 @@ function broadcastNudge(targets: VisitorEventSummary[], cancelled: string[] = []
   sendToCalendarTabs({ type: NUDGE_TARGETS, targets, cancelled });
 }
 
+/** Enter/leave the recoverable auth-lapsed state: a distinct toolbar badge plus a
+ *  broadcast that drives the in-page "Reconnect" banner. Broadcast unconditionally
+ *  so a calendar tab loaded mid-lapse learns about it on the next sync. */
+async function setLapsed(lapsed: boolean): Promise<void> {
+  if (lapsed) {
+    await chrome.action.setBadgeBackgroundColor({ color: LAPSED_BADGE_COLOR });
+    await chrome.action.setBadgeText({ text: '!' });
+  }
+  sendToCalendarTabs({ type: AUTH_LAPSED, lapsed });
+}
+
+/** Recompute the nudge surfaces from local state (no Calendar round-trip) — used
+ *  after a send marks an event handled, so the badge/banner drop it immediately. */
+async function refreshNudgeSurfaces(): Promise<void> {
+  const targets = await listMarked();
+  await chrome.action.setBadgeBackgroundColor({ color: BADGE_COLOR });
+  await chrome.action.setBadgeText({ text: targets.length > 0 ? String(targets.length) : '' });
+  broadcastNudge(targets);
+}
+
 function sendToCalendarTabs(message: unknown): void {
   chrome.tabs
     .query({ url: 'https://calendar.google.com/*' })
@@ -131,7 +166,7 @@ function notifyVisitorEvent(ev: VisitorEventSummary): void {
     type: 'basic',
     iconUrl: chrome.runtime.getURL('icon/128.png'),
     title: 'Visitor event',
-    message: `${ev.title} — open Auxilio to register passes`,
+    message: `${ev.title}. Open Auxilio to register passes.`,
     priority: 1,
   });
 }
@@ -182,12 +217,33 @@ async function handle(
       await chrome.action.setBadgeText({ text: '' });
       return ok({ signedIn: false });
 
-    case 'OPEN_FOR_EVENT': {
-      // Open the panel FIRST, before any await, so the content-script click's
-      // user activation is still valid — sidePanel.open() requires a gesture.
+    case 'OPEN_PANEL': {
+      // Open the side panel within the in-page click's user activation (e.g. the
+      // "Reconnect" banner) so the user lands on the sign-in gate. No active event.
       const tabId = sender.tab?.id;
       let opened = false;
-      if (tabId != null) {
+      if (!panelConnected && tabId != null) {
+        try {
+          await chrome.sidePanel.open({ tabId });
+          opened = true;
+        } catch (err) {
+          console.warn('[auxilio] sidePanel.open failed (gesture not carried?)', err);
+        }
+      }
+      return ok({ opened });
+    }
+
+    case 'OPEN_FOR_EVENT': {
+      // The background is the single authority on open-vs-follow: panelConnected
+      // (the panel's own port) is the truth, so the content script no longer
+      // guesses with local flags that drift. Open the panel only when it isn't
+      // already connected — otherwise this is just a "follow" and we fall through
+      // to update the active event below. Call sidePanel.open FIRST, before any
+      // await, so the content-script click's user activation is still valid
+      // (sidePanel.open requires a live gesture).
+      const tabId = sender.tab?.id;
+      let opened = false;
+      if (!panelConnected && tabId != null) {
         try {
           await chrome.sidePanel.open({ tabId });
           opened = true;
@@ -224,7 +280,17 @@ async function handle(
     case 'PREVIEW':
       return withIdToken((t) => engine.preview(t, msg.iCalUid, msg.visitorEmail));
     case 'SEND':
-      return withIdToken((t) => engine.send(t, msg.iCalUid, msg.start, msg.end));
+      return withTokens(async (t) => {
+        const result = await engine.send(t.idToken, msg.iCalUid, msg.start, msg.end);
+        // Passes are now issued (or remain issued after an update) → drop this
+        // event from the nudge surfaces. Keyed by the event id the sync tracks
+        // (providerEventId), so the badge/banner stop nagging immediately.
+        if (result.activeCount > 0 && result.draft.providerEventId) {
+          await markHandled(result.draft.providerEventId);
+          await refreshNudgeSurfaces();
+        }
+        return result;
+      });
     case 'CANCEL_GUEST':
       return withIdToken((t) =>
         engine.cancelGuest(t, msg.iCalUid, msg.invitationId),
@@ -232,7 +298,13 @@ async function handle(
 
     case 'LIST_VISITOR_EVENTS':
       return withTokens(async (t) => {
-        await runSync(t.accessToken); // refresh before listing
+        // A refresh hiccup (a transient Calendar API error) must not blank the
+        // list — serve the last-known marked set instead of failing the query.
+        try {
+          await runSync(t.accessToken); // refresh before listing
+        } catch (err) {
+          console.warn('[auxilio] LIST_VISITOR_EVENTS refresh failed; serving cached set', err);
+        }
         return listMarked();
       });
 
