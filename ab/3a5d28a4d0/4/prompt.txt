@@ -1,0 +1,1961 @@
+there are bugs, I created an event with magic address, instead of event name I got this in the nudge, visitor event needs passes, manage, also in an event when I have sent the passes, I go to edit guest screen, make some changes, it does not activate the review and send passes button, then I close or click somewhere else, the button becomes active for a second but becomes inactive again, and I go to see the changes I had done in the guest details and they have been reverted back to original. also I do not see the sent visitor event list, is it intentional to not show it if no send visitor list exist. do a deep analysis on this also, the mechanism we have for nudge, one is dom reader instant and one is calendar api based slow but reliable, so if the dom reader nudge has arrived and the user interacts with it, then the calendar api based data comes, the user will be again nudged or it will be resolved internally? first do analysis of the problem and how we will solve it, then I will tell you which solutions to implement.
+
+---
+
+there are bugs, I created an event with magic address, instead of event name I got this in the nudge, visitor event needs passes, manage, also in an event when I have sent
+  the passes, I go to edit guest screen, make some changes, it does not activate the review and send passes button, then I close or click somewhere else, the button becomes
+  active for a second but becomes inactive again, and I go to see the changes I had done in the guest details and they have been reverted back to original. also I do not see
+  the sent visitor event list, is it intentional to not show it if no send visitor list exist. do a deep analysis on this also, the mechanism we have for nudge, one is dom
+  reader instant and one is calendar api based slow but reliable, so if the dom reader nudge has arrived and the user interacts with it, then the calendar api based data comes,
+  the user will be again nudged or it will be resolved internally? first do analysis of the problem and how we will solve it, then I will tell you which solutions to
+  implement.
+
+---
+
+Want empirical confirmation before fixing
+
+---
+
+the event was in the table, in step 2, I got this : {
+    "mode": "full",
+    "magicAddress": "findajx@gmail.com",
+    "itemsReturned": 6041,
+    "markedTotal": 1,
+    "newMarked": 0
+}, in step 3 I only see events titled as lunch. FULL RE-SCAN WINDOW (timeMin=now=2026-06-24T07:23:58.857Z) — 250 events ===
+ndex)
+title
+start
+hasMagic
+attendees
+0    'Lunch'    '2026-06-24T14:00:00+05:30'    false    ''
+1    'Lunch'    '2026-06-25T14:00:00+05:30'    false    ''
+2    'Lunch'    '2026-06-26T14:00:00+05:30'    false    ''
+3    'Lunch'    '2026-06-29T14:00:00+05:30'    false    ''
+4    'Lunch'    '2026-06-30T14:00:00+05:30'    false    ''
+5    'Lunch'    '2026-07-01T14:00:00+05:30'    false    ''
+6    'Lunch'    '2026-07-02T14:00:00+05:30'    false    ''
+7    'Lunch'    '2026-07-03T14:00:00+05:30'    false    ''
+8    'Lunch'    '2026-07-06T14:00:00+05:30'    false    ''
+9    'Lunch'    '2026-07-07T14:00:00+05:30'    false    ''
+10    'Lunch'    '2026-07-08T14:00:00+05:30'    false    ''
+11    'Lunch'    '2026-07-09T14:00:00+05:30'    false    ''
+12    'Lunch'    '2026-07-10T14:00:00+05:30'    false    ''
+13    'Lunch'    '2026-07-13T14:00:00+05:30'    false    ''
+14    'Lunch'    '2026-07-14T14:00:00+05:30'    false    ''
+15    'Lunch'    '2026-07-15T14:00:00+05:30'    false    ''
+16    'Lunch'    '2026-07-16T14:00:00+05:30'    false    ''
+17    'Lunch'    '2026-07-17T14:00:00+05:30'    false    ''
+18    'Lunch'    '2026-07-20T14:00:00+05:30'    false    ''
+19    'Lunch'    '2026-07-21T14:00:00+05:30'    false    ''
+20    'Lunch'    '2026-07-22T14:00:00+05:30'    false    ''
+21    'Lunch'    '2026-07-23T14:00:00+05:30'    false    ''
+22    'Lunch'    '2026-07-24T14:00:00+05:30'    false    ''
+23    'Lunch'    '2026-07-27T14:00:00+05:30'    false    ''
+24    'Lunch'    '2026-07-28T14:00:00+05:30'    false    ''
+25    'Lunch'    '2026-07-29T14:00:00+05:30'    false    ''
+26    'Lunch'    '2026-07-30T14:00:00+05:30'    false    ''
+27    'Lunch'    '2026-07-31T14:00:00+05:30'    false    ''
+28    'Lunch'    '2026-08-03T14:00:00+05:30'    false    ''
+29    'Lunch'    '2026-08-04T14:00:00+05:30'    false    ''
+30    'Lunch'    '2026-08-05T14:00:00+05:30'    false    ''
+31    'Lunch'    '2026-08-06T14:00:00+05:30'    false    ''
+32    'Lunch'    '2026-08-07T14:00:00+05:30'    false    ''
+33    'Lunch'    '2026-08-10T14:00:00+05:30'    false    ''
+34    'Lunch'    '2026-08-11T14:00:00+05:30'    false    ''
+35    'Lunch'    '2026-08-12T14:00:00+05:30'    false    ''
+36    'Lunch'    '2026-08-13T14:00:00+05:30'    false    ''
+37    'Lunch'    '2026-08-14T14:00:00+05:30'    false    ''
+38    'Lunch'    '2026-08-17T14:00:00+05:30'    false    ''
+39    'Lunch'    '2026-08-18T14:00:00+05:30'    false    ''
+40    'Lunch'    '2026-08-19T14:00:00+05:30'    false    ''
+41    'Lunch'    '2026-08-20T14:00:00+05:30'    false    ''
+42    'Lunch'    '2026-08-21T14:00:00+05:30'    false    ''
+43    'Lunch'    '2026-08-24T14:00:00+05:30'    false    ''
+44    'Lunch'    '2026-08-25T14:00:00+05:30'    false    ''
+45    'Lunch'    '2026-08-26T14:00:00+05:30'    false    ''
+46    'Lunch'    '2026-08-27T14:00:00+05:30'    false    ''
+47    'Lunch'    '2026-08-28T14:00:00+05:30'    false    ''
+48    'Lunch'    '2026-08-31T14:00:00+05:30'    false    ''
+49    'Lunch'    '2026-09-01T14:00:00+05:30'    false    ''
+50    'Lunch'    '2026-09-02T14:00:00+05:30'    false    ''
+51    'Lunch'    '2026-09-03T14:00:00+05:30'    false    ''
+52    'Lunch'    '2026-09-04T14:00:00+05:30'    false    ''
+53    'Lunch'    '2026-09-07T14:00:00+05:30'    false    ''
+54    'Lunch'    '2026-09-08T14:00:00+05:30'    false    ''
+55    'Lunch'    '2026-09-09T14:00:00+05:30'    false    ''
+56    'Lunch'    '2026-09-10T14:00:00+05:30'    false    ''
+57    'Lunch'    '2026-09-11T14:00:00+05:30'    false    ''
+58    'Lunch'    '2026-09-14T14:00:00+05:30'    false    ''
+59    'Lunch'    '2026-09-15T14:00:00+05:30'    false    ''
+60    'Lunch'    '2026-09-16T14:00:00+05:30'    false    ''
+61    'Lunch'    '2026-09-17T14:00:00+05:30'    false    ''
+62    'Lunch'    '2026-09-18T14:00:00+05:30'    false    ''
+63    'Lunch'    '2026-09-21T14:00:00+05:30'    false    ''
+64    'Lunch'    '2026-09-22T14:00:00+05:30'    false    ''
+65    'Lunch'    '2026-09-23T14:00:00+05:30'    false    ''
+66    'Lunch'    '2026-09-24T14:00:00+05:30'    false    ''
+67    'Lunch'    '2026-09-25T14:00:00+05:30'    false    ''
+68    'Lunch'    '2026-09-28T14:00:00+05:30'    false    ''
+69    'Lunch'    '2026-09-29T14:00:00+05:30'    false    ''
+70    'Lunch'    '2026-09-30T14:00:00+05:30'    false    ''
+71    'Lunch'    '2026-10-01T14:00:00+05:30'    false    ''
+72    'Lunch'    '2026-10-02T14:00:00+05:30'    false    ''
+73    'Lunch'    '2026-10-05T14:00:00+05:30'    false    ''
+74    'Lunch'    '2026-10-06T14:00:00+05:30'    false    ''
+75    'Lunch'    '2026-10-07T14:00:00+05:30'    false    ''
+76    'Lunch'    '2026-10-08T14:00:00+05:30'    false    ''
+77    'Lunch'    '2026-10-09T14:00:00+05:30'    false    ''
+78    'Lunch'    '2026-10-12T14:00:00+05:30'    false    ''
+79    'Lunch'    '2026-10-13T14:00:00+05:30'    false    ''
+80    'Lunch'    '2026-10-14T14:00:00+05:30'    false    ''
+81    'Lunch'    '2026-10-15T14:00:00+05:30'    false    ''
+82    'Lunch'    '2026-10-16T14:00:00+05:30'    false    ''
+83    'Lunch'    '2026-10-19T14:00:00+05:30'    false    ''
+84    'Lunch'    '2026-10-20T14:00:00+05:30'    false    ''
+85    'Lunch'    '2026-10-21T14:00:00+05:30'    false    ''
+86    'Lunch'    '2026-10-22T14:00:00+05:30'    false    ''
+87    'Lunch'    '2026-10-23T14:00:00+05:30'    false    ''
+88    'Lunch'    '2026-10-26T14:00:00+05:30'    false    ''
+89    'Lunch'    '2026-10-27T14:00:00+05:30'    false    ''
+90    'Lunch'    '2026-10-28T14:00:00+05:30'    false    ''
+91    'Lunch'    '2026-10-29T14:00:00+05:30'    false    ''
+92    'Lunch'    '2026-10-30T14:00:00+05:30'    false    ''
+93    'Lunch'    '2026-11-02T14:00:00+05:30'    false    ''
+94    'Lunch'    '2026-11-03T14:00:00+05:30'    false    ''
+95    'Lunch'    '2026-11-04T14:00:00+05:30'    false    ''
+96    'Lunch'    '2026-11-05T14:00:00+05:30'    false    ''
+97    'Lunch'    '2026-11-06T14:00:00+05:30'    false    ''
+98    'Lunch'    '2026-11-09T14:00:00+05:30'    false    ''
+99    'Lunch'    '2026-11-10T14:00:00+05:30'    false    ''
+100    'Lunch'    '2026-11-11T14:00:00+05:30'    false    ''
+101    'Lunch'    '2026-11-12T14:00:00+05:30'    false    ''
+102    'Lunch'    '2026-11-13T14:00:00+05:30'    false    ''
+103    'Lunch'    '2026-11-16T14:00:00+05:30'    false    ''
+104    'Lunch'    '2026-11-17T14:00:00+05:30'    false    ''
+105    'Lunch'    '2026-11-18T14:00:00+05:30'    false    ''
+106    'Lunch'    '2026-11-19T14:00:00+05:30'    false    ''
+107    'Lunch'    '2026-11-20T14:00:00+05:30'    false    ''
+108    'Lunch'    '2026-11-23T14:00:00+05:30'    false    ''
+109    'Lunch'    '2026-11-24T14:00:00+05:30'    false    ''
+110    'Lunch'    '2026-11-25T14:00:00+05:30'    false    ''
+111    'Lunch'    '2026-11-26T14:00:00+05:30'    false    ''
+112    'Lunch'    '2026-11-27T14:00:00+05:30'    false    ''
+113    'Lunch'    '2026-11-30T14:00:00+05:30'    false    ''
+114    'Lunch'    '2026-12-01T14:00:00+05:30'    false    ''
+115    'Lunch'    '2026-12-02T14:00:00+05:30'    false    ''
+116    'Lunch'    '2026-12-03T14:00:00+05:30'    false    ''
+117    'Lunch'    '2026-12-04T14:00:00+05:30'    false    ''
+118    'Lunch'    '2026-12-07T14:00:00+05:30'    false    ''
+119    'Lunch'    '2026-12-08T14:00:00+05:30'    false    ''
+120    'Lunch'    '2026-12-09T14:00:00+05:30'    false    ''
+121    'Lunch'    '2026-12-10T14:00:00+05:30'    false    ''
+122    'Lunch'    '2026-12-11T14:00:00+05:30'    false    ''
+123    'Lunch'    '2026-12-14T14:00:00+05:30'    false    ''
+124    'Lunch'    '2026-12-15T14:00:00+05:30'    false    ''
+125    'Lunch'    '2026-12-16T14:00:00+05:30'    false    ''
+126    'Lunch'    '2026-12-17T14:00:00+05:30'    false    ''
+127    'Lunch'    '2026-12-18T14:00:00+05:30'    false    ''
+128    'Lunch'    '2026-12-21T14:00:00+05:30'    false    ''
+129    'Lunch'    '2026-12-22T14:00:00+05:30'    false    ''
+130    'Lunch'    '2026-12-23T14:00:00+05:30'    false    ''
+131    'Lunch'    '2026-12-24T14:00:00+05:30'    false    ''
+132    'Lunch'    '2026-12-25T14:00:00+05:30'    false    ''
+133    'Lunch'    '2026-12-28T14:00:00+05:30'    false    ''
+134    'Lunch'    '2026-12-29T14:00:00+05:30'    false    ''
+135    'Lunch'    '2026-12-30T14:00:00+05:30'    false    ''
+136    'Lunch'    '2026-12-31T14:00:00+05:30'    false    ''
+137    'Lunch'    '2027-01-01T14:00:00+05:30'    false    ''
+138    'Lunch'    '2027-01-04T14:00:00+05:30'    false    ''
+139    'Lunch'    '2027-01-05T14:00:00+05:30'    false    ''
+140    'Lunch'    '2027-01-06T14:00:00+05:30'    false    ''
+141    'Lunch'    '2027-01-07T14:00:00+05:30'    false    ''
+142    'Lunch'    '2027-01-08T14:00:00+05:30'    false    ''
+143    'Lunch'    '2027-01-11T14:00:00+05:30'    false    ''
+144    'Lunch'    '2027-01-12T14:00:00+05:30'    false    ''
+145    'Lunch'    '2027-01-13T14:00:00+05:30'    false    ''
+146    'Lunch'    '2027-01-14T14:00:00+05:30'    false    ''
+147    'Lunch'    '2027-01-15T14:00:00+05:30'    false    ''
+148    'Lunch'    '2027-01-18T14:00:00+05:30'    false    ''
+149    'Lunch'    '2027-01-19T14:00:00+05:30'    false    ''
+150    'Lunch'    '2027-01-20T14:00:00+05:30'    false    ''
+151    'Lunch'    '2027-01-21T14:00:00+05:30'    false    ''
+152    'Lunch'    '2027-01-22T14:00:00+05:30'    false    ''
+153    'Lunch'    '2027-01-25T14:00:00+05:30'    false    ''
+154    'Lunch'    '2027-01-26T14:00:00+05:30'    false    ''
+155    'Lunch'    '2027-01-27T14:00:00+05:30'    false    ''
+156    'Lunch'    '2027-01-28T14:00:00+05:30'    false    ''
+157    'Lunch'    '2027-01-29T14:00:00+05:30'    false    ''
+158    'Lunch'    '2027-02-01T14:00:00+05:30'    false    ''
+159    'Lunch'    '2027-02-02T14:00:00+05:30'    false    ''
+160    'Lunch'    '2027-02-03T14:00:00+05:30'    false    ''
+161    'Lunch'    '2027-02-04T14:00:00+05:30'    false    ''
+162    'Lunch'    '2027-02-05T14:00:00+05:30'    false    ''
+163    'Lunch'    '2027-02-08T14:00:00+05:30'    false    ''
+164    'Lunch'    '2027-02-09T14:00:00+05:30'    false    ''
+165    'Lunch'    '2027-02-10T14:00:00+05:30'    false    ''
+166    'Lunch'    '2027-02-11T14:00:00+05:30'    false    ''
+167    'Lunch'    '2027-02-12T14:00:00+05:30'    false    ''
+168    'Lunch'    '2027-02-15T14:00:00+05:30'    false    ''
+169    'Lunch'    '2027-02-16T14:00:00+05:30'    false    ''
+170    'Lunch'    '2027-02-17T14:00:00+05:30'    false    ''
+171    'Lunch'    '2027-02-18T14:00:00+05:30'    false    ''
+172    'Lunch'    '2027-02-19T14:00:00+05:30'    false    ''
+173    'Lunch'    '2027-02-22T14:00:00+05:30'    false    ''
+174    'Lunch'    '2027-02-23T14:00:00+05:30'    false    ''
+175    'Lunch'    '2027-02-24T14:00:00+05:30'    false    ''
+176    'Lunch'    '2027-02-25T14:00:00+05:30'    false    ''
+177    'Lunch'    '2027-02-26T14:00:00+05:30'    false    ''
+178    'Lunch'    '2027-03-01T14:00:00+05:30'    false    ''
+179    'Lunch'    '2027-03-02T14:00:00+05:30'    false    ''
+180    'Lunch'    '2027-03-03T14:00:00+05:30'    false    ''
+181    'Lunch'    '2027-03-04T14:00:00+05:30'    false    ''
+182    'Lunch'    '2027-03-05T14:00:00+05:30'    false    ''
+183    'Lunch'    '2027-03-08T14:00:00+05:30'    false    ''
+184    'Lunch'    '2027-03-09T14:00:00+05:30'    false    ''
+185    'Lunch'    '2027-03-10T14:00:00+05:30'    false    ''
+186    'Lunch'    '2027-03-11T14:00:00+05:30'    false    ''
+187    'Lunch'    '2027-03-12T14:00:00+05:30'    false    ''
+188    'Lunch'    '2027-03-15T14:00:00+05:30'    false    ''
+189    'Lunch'    '2027-03-16T14:00:00+05:30'    false    ''
+190    'Lunch'    '2027-03-17T14:00:00+05:30'    false    ''
+191    'Lunch'    '2027-03-18T14:00:00+05:30'    false    ''
+192    'Lunch'    '2027-03-19T14:00:00+05:30'    false    ''
+193    'Lunch'    '2027-03-22T14:00:00+05:30'    false    ''
+194    'Lunch'    '2027-03-23T14:00:00+05:30'    false    ''
+195    'Lunch'    '2027-03-24T14:00:00+05:30'    false    ''
+196    'Lunch'    '2027-03-25T14:00:00+05:30'    false    ''
+197    'Lunch'    '2027-03-26T14:00:00+05:30'    false    ''
+198    'Lunch'    '2027-03-29T14:00:00+05:30'    false    ''
+199    'Lunch'    '2027-03-30T14:00:00+05:30'    false    ''
+200    'Lunch'    '2027-03-31T14:00:00+05:30'    false    ''
+201    'Lunch'    '2027-04-01T14:00:00+05:30'    false    ''
+202    'Lunch'    '2027-04-02T14:00:00+05:30'    false    ''
+203    'Lunch'    '2027-04-05T14:00:00+05:30'    false    ''
+204    'Lunch'    '2027-04-06T14:00:00+05:30'    false    ''
+205    'Lunch'    '2027-04-07T14:00:00+05:30'    false    ''
+206    'Lunch'    '2027-04-08T14:00:00+05:30'    false    ''
+207    'Lunch'    '2027-04-09T14:00:00+05:30'    false    ''
+208    'Lunch'    '2027-04-12T14:00:00+05:30'    false    ''
+209    'Lunch'    '2027-04-13T14:00:00+05:30'    false    ''
+210    'Lunch'    '2027-04-14T14:00:00+05:30'    false    ''
+211    'Lunch'    '2027-04-15T14:00:00+05:30'    false    ''
+212    'Lunch'    '2027-04-16T14:00:00+05:30'    false    ''
+213    'Lunch'    '2027-04-19T14:00:00+05:30'    false    ''
+214    'Lunch'    '2027-04-20T14:00:00+05:30'    false    ''
+215    'Lunch'    '2027-04-21T14:00:00+05:30'    false    ''
+216    'Lunch'    '2027-04-22T14:00:00+05:30'    false    ''
+217    'Lunch'    '2027-04-23T14:00:00+05:30'    false    ''
+218    'Lunch'    '2027-04-26T14:00:00+05:30'    false    ''
+219    'Lunch'    '2027-04-27T14:00:00+05:30'    false    ''
+220    'Lunch'    '2027-04-28T14:00:00+05:30'    false    ''
+221    'Lunch'    '2027-04-29T14:00:00+05:30'    false    ''
+222    'Lunch'    '2027-04-30T14:00:00+05:30'    false    ''
+223    'Lunch'    '2027-05-03T14:00:00+05:30'    false    ''
+224    'Lunch'    '2027-05-04T14:00:00+05:30'    false    ''
+225    'Lunch'    '2027-05-05T14:00:00+05:30'    false    ''
+226    'Lunch'    '2027-05-06T14:00:00+05:30'    false    ''
+227    'Lunch'    '2027-05-07T14:00:00+05:30'    false    ''
+228    'Lunch'    '2027-05-10T14:00:00+05:30'    false    ''
+229    'Lunch'    '2027-05-11T14:00:00+05:30'    false    ''
+230    'Lunch'    '2027-05-12T14:00:00+05:30'    false    ''
+231    'Lunch'    '2027-05-13T14:00:00+05:30'    false    ''
+232    'Lunch'    '2027-05-14T14:00:00+05:30'    false    ''
+233    'Lunch'    '2027-05-17T14:00:00+05:30'    false    ''
+234    'Lunch'    '2027-05-18T14:00:00+05:30'    false    ''
+235    'Lunch'    '2027-05-19T14:00:00+05:30'    false    ''
+236    'Lunch'    '2027-05-20T14:00:00+05:30'    false    ''
+237    'Lunch'    '2027-05-21T14:00:00+05:30'    false    ''
+238    'Lunch'    '2027-05-24T14:00:00+05:30'    false    ''
+239    'Lunch'    '2027-05-25T14:00:00+05:30'    false    ''
+240    'Lunch'    '2027-05-26T14:00:00+05:30'    false    ''
+241    'Lunch'    '2027-05-27T14:00:00+05:30'    false    ''
+242    'Lunch'    '2027-05-28T14:00:00+05:30'    false    ''
+243    'Lunch'    '2027-05-31T14:00:00+05:30'    false    ''
+244    'Lunch'    '2027-06-01T14:00:00+05:30'    false    ''
+245    'Lunch'    '2027-06-02T14:00:00+05:30'    false    ''
+246    'Lunch'    '2027-06-03T14:00:00+05:30'    false    ''
+247    'Lunch'    '2027-06-04T14:00:00+05:30'    false    ''
+248    'Lunch'    '2027-06-07T14:00:00+05:30'    false    ''
+249    'Lunch'    '2027-06-08T14:00:00+05:30'    false    ''
+=== WIDER WINDOW (timeMin=startOfToday=2026-06-23T18:30:00.000Z) — 250 events ===
+[
+    {
+        "title": "Lunch",
+        "start": "2026-06-24T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-06-25T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-06-26T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-06-29T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-06-30T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-07-01T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-07-02T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-07-03T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-07-06T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-07-07T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-07-08T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-07-09T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-07-10T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-07-13T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-07-14T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-07-15T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-07-16T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-07-17T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-07-20T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-07-21T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-07-22T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-07-23T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-07-24T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-07-27T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-07-28T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-07-29T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-07-30T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-07-31T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-08-03T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-08-04T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-08-05T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-08-06T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-08-07T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-08-10T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-08-11T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-08-12T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-08-13T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-08-14T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-08-17T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-08-18T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-08-19T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-08-20T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-08-21T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-08-24T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-08-25T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-08-26T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-08-27T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-08-28T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-08-31T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-09-01T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-09-02T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-09-03T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-09-04T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-09-07T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-09-08T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-09-09T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-09-10T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-09-11T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-09-14T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-09-15T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-09-16T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-09-17T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-09-18T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-09-21T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-09-22T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-09-23T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-09-24T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-09-25T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-09-28T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-09-29T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-09-30T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-10-01T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-10-02T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-10-05T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-10-06T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-10-07T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-10-08T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-10-09T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-10-12T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-10-13T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-10-14T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-10-15T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-10-16T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-10-19T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-10-20T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-10-21T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-10-22T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-10-23T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-10-26T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-10-27T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-10-28T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-10-29T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-10-30T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-11-02T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-11-03T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-11-04T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-11-05T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-11-06T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-11-09T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-11-10T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-11-11T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-11-12T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-11-13T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-11-16T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-11-17T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-11-18T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-11-19T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-11-20T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-11-23T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-11-24T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-11-25T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-11-26T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-11-27T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-11-30T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-12-01T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-12-02T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-12-03T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-12-04T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-12-07T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-12-08T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-12-09T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-12-10T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-12-11T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-12-14T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-12-15T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-12-16T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-12-17T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-12-18T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-12-21T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-12-22T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-12-23T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-12-24T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-12-25T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-12-28T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-12-29T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-12-30T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2026-12-31T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-01-01T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-01-04T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-01-05T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-01-06T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-01-07T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-01-08T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-01-11T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-01-12T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-01-13T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-01-14T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-01-15T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-01-18T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-01-19T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-01-20T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-01-21T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-01-22T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-01-25T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-01-26T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-01-27T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-01-28T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-01-29T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-02-01T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-02-02T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-02-03T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-02-04T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-02-05T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-02-08T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-02-09T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-02-10T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-02-11T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-02-12T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-02-15T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-02-16T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-02-17T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-02-18T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-02-19T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-02-22T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-02-23T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-02-24T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-02-25T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-02-26T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-03-01T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-03-02T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-03-03T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-03-04T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-03-05T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-03-08T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-03-09T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-03-10T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-03-11T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-03-12T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-03-15T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-03-16T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-03-17T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-03-18T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-03-19T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-03-22T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-03-23T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-03-24T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-03-25T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-03-26T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-03-29T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-03-30T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-03-31T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-04-01T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-04-02T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-04-05T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-04-06T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-04-07T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-04-08T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-04-09T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-04-12T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-04-13T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-04-14T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-04-15T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-04-16T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-04-19T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-04-20T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-04-21T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-04-22T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-04-23T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-04-26T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-04-27T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-04-28T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-04-29T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-04-30T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-05-03T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-05-04T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-05-05T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-05-06T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-05-07T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-05-10T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-05-11T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-05-12T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-05-13T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-05-14T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-05-17T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-05-18T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-05-19T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-05-20T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-05-21T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-05-24T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-05-25T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-05-26T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-05-27T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-05-28T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-05-31T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-06-01T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-06-02T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-06-03T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-06-04T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-06-07T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    },
+    {
+        "title": "Lunch",
+        "start": "2027-06-08T14:00:00+05:30",
+        "hasMagic": false,
+        "attendees": ""
+    }
+]
+
+---
+
+got this : Promise {<pending>}[[Prototype]]: Promise[[PromiseState]]: "pending"[[PromiseResult]]: undefined
+VM29:23 unbounded: 14298.055908203125 ms
+VM29:24 UNBOUNDED → 6034 items, 25 pages | visitor events: [{…}]0: {title: 'Meeting 20', start: '2026-06-24T18:00:00+05:30'}start: "2026-06-24T18:00:00+05:30"title: "Meeting 20"[[Prototype]]: Objectlength: 1[[Prototype]]: Array(0)
+VM29:25 bounded90: 1737.222900390625 ms
+VM29:26 timeMax=now+90d → 527 items, 3 pages | visitor events: [{…}] , version is 0.9.0,
+
+---
+
+add all the research, findings, bugs, actions, decisions, and solutions we approved into a relevant doc.
+
+---
+
+that nudge issue seems to be solved, but the guest info edit and revert issue is still there.
+
+---
+
+[auxilio] background ready
+background.js:1 [auxilio] sync done Object
+background.js:1 [auxilio] sync done Object
+background.js:1 [auxilio] resolve event {eid: 'REDACTED', eventId: '5m4qej7psbcbqdo0urlpvma26v', calendarId: 'primary', candidates: Array(1)}
+background.js:1 [auxilio] resolved event {iCalUID: '5m4qej7psbcbqdo0urlpvma26v@google.com', summary: 'Meeting 21', attendees: 5}
+background.js:1 [auxilio] engine → POST https://unyearning-olympia-unclimactic.ngrok-free.dev/api/visitor/calendar/addon/draft
+background.js:1 [auxilio] engine ← 200 1603ms {"iCalUid":"5m4qej7psbcbqdo0urlpvma26v@google.com","tenantId":"appointy","providerEventId":"5m4qej7psbcbqdo0urlpvma26v","title":"Meeting 21","hostEmail":"junaid@appointy.com","roster":[{"email":"j7654
+background.js:1 [auxilio] engine → PATCH https://unyearning-olympia-unclimactic.ngrok-free.dev/api/visitor/calendar/addon/draft
+background.js:1 [auxilio] engine ← 200 236ms {"iCalUid":"5m4qej7psbcbqdo0urlpvma26v@google.com","tenantId":"appointy","providerEventId":"5m4qej7psbcbqdo0urlpvma26v","title":"Meeting 21","hostEmail":"junaid@appointy.com","roster":[{"email":"j7654
+background.js:1 [auxilio] sync done {mode: 'incremental', magicAddress: 'findajx@gmail.com', itemsReturned: 0, markedTotal: 2, newMarked: 0}
+background.js:1 [auxilio] sync done {mode: 'incremental', magicAddress: 'findajx@gmail.com', itemsReturned: 0, markedTotal: 2, newMarked: 0}
+
+No red errrors.
+
+---
+
+yes that issue is fixed
+
+---
+
+one bug, although the names are resolved, but on the invite passes and email sent to the user is still containing the trimmed email part as the guest name.
+
+---
+
+some bugs still persists, I edited the values of the guest, the update and send passes button became active, I sent the passes, it said no changes, still. Also, the visitor needs passes nudge still comes without names. and also the manage visitor button sometimes show up, sometimes does not, is it because of the background processing happening in the extension? this manage visitor button not being rendered on modal or flickering between visible and not visible is during the initial phase only, when I refresh the calendar page.
+
+---
+
+well the name is coming, I think we need to change the design of the nudge a little bit, like the name of the event looks like an after thought. It shows : Visitor event needs passes. (title) , one issue, there are events for which I have already sent passes, but when I open and close those event, and then I do another activity or refresh, I get the nudge for that event also.
+
+---
+
+continue
+
+---
+
+I think the name resolver from contacts is not working.
+
+---
+
+(async () => {
+    const tok = (await chrome.storage.session.get('auxilio.tokens'))['auxilio.tokens'];
+    if (!tok) { console.warn('not signed in'); return; }
+
+    // (a) What scopes does the current access token actually carry?
+    const info = await (await fetch(
+      'https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=' + tok.accessToken
+    )).json();
+    console.log('TOKEN SCOPES:', info.scope || info.error);
+
+    // (b) Try a real contacts search for a guest email (replace with one you expect to resolve)
+    const email = prompt('Guest email to test contacts lookup:');
+    if (!email) return;
+    const url = new URL('https://people.googleapis.com/v1/people:searchContacts');
+    url.searchParams.set('query', email);
+    url.searchParams.set('readMask', 'names,emailAddresses,photos');
+    const res = await fetch(url, { headers: { Authorization: 'Bearer ' + tok.accessToken } });
+    console.log('searchContacts status:', res.status);
+    console.log('searchContacts body:', await res.text());
+  })();
+Promise {<pending>}
+VM20:10 TOKEN SCOPES: email profile https://www.googleapis.com/auth/calendar.events.readonly https://www.googleapis.com/auth/contacts.other.readonly https://www.googleapis.com/auth/contacts.readonly https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile openid
+VM20:13 Uncaught (in promise) ReferenceError: prompt is not defined
+    at <anonymous>:13:19
+
+---
+
+(async () => {
+    const EMAIL = 'j7654894110@gmail.com';   // an external guest you expect to resolve
+    const tok = (await chrome.storage.session.get('auxilio.tokens'))['auxilio.tokens'];
+    if (!tok) { console.warn('not signed in'); return; }
+    const H = { Authorization: 'Bearer ' + tok.accessToken };
+
+    const call = async (path, query, readMask) => {
+      const url = new URL('https://people.googleapis.com/v1/' + path);
+      url.searchParams.set('query', query);
+      url.searchParams.set('readMask', readMask);
+      url.searchParams.set('pageSize', '5');
+      const res = await fetch(url, { headers: H });
+      return { status: res.status, body: await res.text() };
+    };
+
+    // Warmup (People search index must be primed by a prior empty-query call)
+    await call('people:searchContacts', '', 'names,emailAddresses').catch(()=>{});
+    await call('otherContacts:search', '', 'names,emailAddresses').catch(()=>{});
+    await new Promise(r => setTimeout(r, 800)); // let the index warm
+
+    const c = await call('people:searchContacts', EMAIL, 'names,emailAddresses,photos');
+    console.log('searchContacts →', c.status, c.body);
+
+    const o = await call('otherContacts:search', EMAIL, 'names,emailAddresses');
+    console.log('otherContacts  →', o.status, o.body);
+  })();
+Promise {<pending>}
+VM74:22 searchContacts → 200 {
+  "results": [
+    {
+      "person": {
+        "resourceName": "people/c368264222954302837",
+        "etag": "%EggBAgMJLjc9PhoBAiIMVHdjbHRjS21GaGM9",
+        "names": [
+          {
+            "metadata": {
+              "primary": true,
+              "source": {
+                "type": "CONTACT",
+                "id": "51c565c10ad2d75"
+              },
+              "sourcePrimary": true
+            },
+            "displayName": "Junaid Ahmad",
+            "familyName": "Ahmad",
+            "givenName": "Junaid",
+            "displayNameLastFirst": "Ahmad, Junaid",
+            "unstructuredName": "Junaid Ahmad"
+          }
+        ],
+        "photos": [
+          {
+            "metadata": {
+              "primary": true,
+              "source": {
+                "type": "CONTACT",
+                "id": "51c565c10ad2d75"
+              }
+            },
+            "url": "https://lh3.googleusercontent.com/cm/REDACTED",
+            "default": true
+          }
+        ],
+        "emailAddresses": [
+          {
+            "metadata": {
+              "primary": true,
+              "source": {
+                "type": "CONTACT",
+                "id": "51c565c10ad2d75"
+              }
+            },
+            "value": "j7654894110@gmail.com"
+          }
+        ]
+      }
+    }
+  ]
+}
+
+VM74:25 otherContacts  → 200 {}
+
+---
+
+chrome.storage.local.get('auxilio.peopleCache').then(r =>
+    console.log('cached entry:', JSON.stringify(r['auxilio.peopleCache']?.['j7654894110@gmail.com'])));
+Promise {<pending>}
+VM78:2 cached entry: {"at":1782280140949,"person":{"name":"Junaid Ahmad"}}
+
+---
+
+no, not fixed, I will tell you the whole scenario, I created a new event named Meeting 24, added the guests, got the instant nudge, I pressed on manage, the side panel opened, in there the guest names were not resolved.
