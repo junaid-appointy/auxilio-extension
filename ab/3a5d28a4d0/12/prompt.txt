@@ -1,0 +1,38 @@
+❯ there is an issue, first I opened the side panel, it showed me : o upcoming visitor events found. They appear here once an event includes the
+    visitor address.. then I opened the event on calendar which had 4 people in it, one was me, one was the magic address, two were guest. It loaded in the side panel, I did
+  not create invite, I closed the side panel and the nudge notification came up, but without the name of the event for which it is, it just showed, visitor event needs passes,
+  and manage button. also the first time I had opened the modal ,the manage visitor button was also not there. what is this issue? check the whole flow of auxilio-extension, and tell me if we have implemented something wrong and how to fix them, any flow where you find flaws do point them out.
+
+---
+
+what is secondary calendar here?
+
+---
+
+what is secondary calendar here?
+
+---
+
+what is secondary calendar here?
+
+---
+
+continue
+
+---
+
+I am on primary calendar, the bug is on that only
+
+---
+
+where I would find it ?  4. Copy the [auxilio] sync done line and any [auxilio] sync MISS / sync failed / refresh failed lines.
+
+---
+
+{
+    "mode": "incremental",
+    "magicAddress": "findajx@gmail.com",
+    "itemsReturned": 0,
+    "markedTotal": 0,
+    "newMarked": 0
+}
