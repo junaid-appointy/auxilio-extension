@@ -1,0 +1,9 @@
+no the email preview is still same in extension. I see both horizontal and vertical bars.
+
+---
+
+lets do one thing, lets start doing versioning of the extension, so that we know each change has been applied or not.
+
+---
+
+no header stamp required,
