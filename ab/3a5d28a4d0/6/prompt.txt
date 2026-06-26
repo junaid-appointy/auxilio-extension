@@ -1,0 +1,1 @@
+lets create a doc named authentication flow and there we will write how we are doing client side auth and how it is secure, but first correct me, if client side auth is secure.
