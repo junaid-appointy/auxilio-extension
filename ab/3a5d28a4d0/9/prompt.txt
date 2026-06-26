@@ -1,0 +1,42 @@
+what are important fixes
+
+---
+
+yes, implement the two P0s.
+
+---
+
+continue
+
+---
+
+also, one more issue, we decided on implemented hybrid auth system, the extension and the backend engine working together during sign in, so that permission can be given to both in one go. right now I signed out and signed in, I did not see such permission system. is that implemented?
+
+---
+
+move to P1 and P2s
+
+---
+
+which one do you recommend?
+
+---
+
+okay option 1
+
+---
+
+build it
+
+---
+
+any issues still pending?
+
+---
+
+how would we fix these 2?   2. P0a suppression is local-only (real residual gap). If passes were sent via the add-on or another device, this extension's nudge won't know and will keep nagging. Closing it
+  properly needs an engine "which iCalUIDs still need passes" endpoint — an engine-contract change I deliberately didn't make. This is the main correctness limit that remains
+  by design.
+
+                                                                                                                                                                       3. markHandled depends on draft.providerEventId being set. If the engine's send response ever returns a draft without providerEventId, the event silently won't get suppressed
+  (falls back to old nag-until-aged-out behavior). Worth a quick check that the engine always populates it on the send path.

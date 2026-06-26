@@ -1,0 +1,124 @@
+{
+  "cli_version": "0.7.6",
+  "checkpoint_id": "ab3a5d28a4d0",
+  "session_id": "ce9b7c6f-1f6d-4614-8068-7337a12bb17b",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-26T09:47:03.497935Z",
+  "branch": "main",
+  "checkpoints_count": 9,
+  "save_step_count": 9,
+  "files_touched": [
+    "design/global.css",
+    "entrypoints/background.ts",
+    "entrypoints/calendar.content.ts",
+    "features/visit/RosterRow.tsx",
+    "features/visit/VisitPanel.tsx",
+    "lib/auth.ts",
+    "lib/calendar-sync.ts",
+    "lib/calendar.ts",
+    "lib/engine.ts",
+    "lib/messaging.ts",
+    "lib/types.ts",
+    "package.json"
+  ],
+  "agent": "Claude Code",
+  "model": "",
+  "turn_id": "fc15f716313b",
+  "token_usage": {
+    "input_tokens": 20722,
+    "cache_creation_tokens": 644932,
+    "cache_read_tokens": 12993191,
+    "output_tokens": 85395,
+    "api_call_count": 111
+  },
+  "session_metrics": {
+    "turn_count": 9
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-26T09:47:03.471008Z",
+    "agent_lines": 1115,
+    "agent_removed": 174,
+    "human_added": 735,
+    "human_modified": 12,
+    "human_removed": 0,
+    "total_committed": 1862,
+    "total_lines_changed": 2098,
+    "agent_percentage": 61.43946615824595,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 234,
+      "agent_lines_removed": 80
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 124,
+      "user_lines_removed": 12,
+      "agent_lines_added": 271,
+      "agent_lines_removed": 105,
+      "user_added_per_file": {
+        "entrypoints/background.ts": 50,
+        "lib/auth.ts": 20,
+        "lib/calendar-sync.ts": 47,
+        "lib/messaging.ts": 7
+      },
+      "user_removed_per_file": {
+        "entrypoints/background.ts": 3,
+        "lib/calendar-sync.ts": 9
+      }
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 494,
+      "agent_lines_removed": 118
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 529,
+      "agent_lines_removed": 117
+    },
+    {
+      "checkpoint_number": 6,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 529,
+      "agent_lines_removed": 117
+    },
+    {
+      "checkpoint_number": 7,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 539,
+      "agent_lines_removed": 117
+    },
+    {
+      "checkpoint_number": 8,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 539,
+      "agent_lines_removed": 117
+    },
+    {
+      "checkpoint_number": 9,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}
