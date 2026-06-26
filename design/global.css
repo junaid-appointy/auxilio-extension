@@ -377,6 +377,8 @@ select.field__input { cursor: pointer; appearance: none; }
 }
 .guest__avatar--sent { background: var(--color-success-container); color: var(--color-on-success-container); }
 .guest__avatar--dim { background: var(--color-surface-high); color: var(--color-on-surface-variant); }
+/* Resolved profile photo fills the avatar circle; falls back to the monogram. */
+.guest__photo { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block; }
 
 .guest__id { flex: 1 1 auto; min-width: 0; }
 /* Name shrinks + ellipsizes; status chips ("Pass sent" / "Will cancel") never

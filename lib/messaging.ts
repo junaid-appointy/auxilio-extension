@@ -10,7 +10,9 @@ import type {
   DomEventSnapshot,
   DraftPatch,
   DraftResponse,
+  PanelVisitorEvent,
   PreviewResponse,
+  ResolvedPerson,
   SendResponse,
   VisitDraft,
   VisitorEventSummary,
@@ -25,12 +27,14 @@ export type RpcRequest =
   | { type: 'FOLLOW_EVENT'; eid: string; snapshot?: DomEventSnapshot }
   | { type: 'RESOLVE_EVENT'; eid: string }
   | { type: 'DRAFT_LOAD'; event: ActiveEvent }
+  | { type: 'RESOLVE_GUESTS'; emails: string[] }
   | { type: 'DRAFT_PATCH'; iCalUid: string; patch: DraftPatch }
   | { type: 'PREVIEW'; iCalUid: string; visitorEmail: string }
   | { type: 'SEND'; iCalUid: string; start?: string; end?: string }
   | { type: 'CANCEL_GUEST'; iCalUid: string; invitationId: string }
   | { type: 'LIST_VISITOR_EVENTS' }
   | { type: 'GET_NUDGE_TARGETS' }
+  | { type: 'IS_EVENT_HANDLED'; eventId: string }
   | { type: 'SYNC_NOW' }
   | { type: 'GET_PANEL_STATE' }
   | { type: 'NAVIGATE_TO_EVENT'; eventId?: string; eid?: string };
@@ -45,12 +49,14 @@ export interface RpcResultMap {
   FOLLOW_EVENT: { followed: boolean };
   RESOLVE_EVENT: ActiveEvent;
   DRAFT_LOAD: DraftResponse;
+  RESOLVE_GUESTS: Record<string, ResolvedPerson>;
   DRAFT_PATCH: VisitDraft;
   PREVIEW: PreviewResponse;
   SEND: SendResponse;
   CANCEL_GUEST: { invitationId: string; cancelled: boolean };
-  LIST_VISITOR_EVENTS: VisitorEventSummary[];
+  LIST_VISITOR_EVENTS: PanelVisitorEvent[];
   GET_NUDGE_TARGETS: VisitorEventSummary[];
+  IS_EVENT_HANDLED: { handled: boolean };
   SYNC_NOW: { synced: boolean };
   GET_PANEL_STATE: { open: boolean };
   NAVIGATE_TO_EVENT: { navigated: boolean };

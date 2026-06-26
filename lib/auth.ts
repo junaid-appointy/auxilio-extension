@@ -15,6 +15,12 @@ const SCOPES = [
   'email',
   'profile',
   'https://www.googleapis.com/auth/calendar.events.readonly',
+  // Resolve guest names + photos the Calendar event API omits for external guests
+  // (People API, client-side — mirrors the add-on). Both are *sensitive* scopes,
+  // NOT restricted → no CASA, and still no Gmail/Drive. Adding these requires each
+  // user to re-consent once (a silent renew won't widen scope).
+  'https://www.googleapis.com/auth/contacts.readonly',
+  'https://www.googleapis.com/auth/contacts.other.readonly',
 ].join(' ');
 
 const KEY = 'auxilio.tokens';
@@ -26,6 +32,12 @@ const KEY = 'auxilio.tokens';
  *  renew means auth has lapsed (surface a reconnect), not that the user is signed
  *  out. Cleared only on explicit sign-out. */
 const CONNECTED_KEY = 'auxilio.connected';
+/** Durable copy of the connected account's email. storage.session (the token
+ *  bundle) is wiped on browser restart, but a silent renew needs to know WHICH
+ *  Google account to refresh — without a login_hint, prompt=none fails on a
+ *  multi-account profile (Google can't pick one non-interactively), which surfaces
+ *  as every write silently failing. Survives the restart so the hint is available. */
+const EMAIL_KEY = 'auxilio.email';
 
 interface TokenBundle {
   idToken: string;
@@ -59,7 +71,10 @@ async function readCache(): Promise<TokenBundle | null> {
   return (r[KEY] as TokenBundle) ?? null;
 }
 
-async function mint(interactive: boolean): Promise<{ bundle: TokenBundle; code?: string }> {
+async function mint(
+  interactive: boolean,
+  loginHint?: string,
+): Promise<{ bundle: TokenBundle; code?: string }> {
   if (!OAUTH_CLIENT_ID) {
     throw new Error(
       'OAuth client id missing. Set WXT_OAUTH_CLIENT_ID in .env and rebuild.',
@@ -75,6 +90,10 @@ async function mint(interactive: boolean): Promise<{ bundle: TokenBundle; code?:
   url.searchParams.set('nonce', crypto.randomUUID());
   url.searchParams.set('prompt', interactive ? 'consent select_account' : 'none');
   if (interactive) url.searchParams.set('access_type', 'offline');
+  // Tell Google which account to (re)use. Essential for the silent prompt=none
+  // renew on a multi-account profile — without it Google can't choose an account
+  // non-interactively and the renew fails, dead-ending every authed request.
+  if (loginHint) url.searchParams.set('login_hint', loginHint);
 
   const redirect = await chrome.identity.launchWebAuthFlow({
     url: url.toString(),
@@ -86,14 +105,25 @@ async function mint(interactive: boolean): Promise<{ bundle: TokenBundle; code?:
   if (error) throw new Error(`Google sign-in error: ${error}`);
   if (!idToken || !accessToken) throw new Error('Sign-in did not return tokens');
 
+  const email = emailFromIdToken(idToken);
   const bundle: TokenBundle = {
     idToken,
     accessToken,
-    email: emailFromIdToken(idToken),
+    email,
     expiresAt: Date.now() + (expiresIn - 60) * 1000, // refresh 60s early
   };
   await chrome.storage.session.set({ [KEY]: bundle });
+  // Persist the email durably so a later silent renew (after a restart wipes the
+  // session bundle) still has a login_hint to pass.
+  if (email) await chrome.storage.local.set({ [EMAIL_KEY]: email });
   return { bundle, code: code || undefined };
+}
+
+/** Durable email hint for silent renew (survives the restart that wipes the
+ *  storage.session token bundle). */
+async function readStoredEmail(): Promise<string | undefined> {
+  const r = await chrome.storage.local.get(EMAIL_KEY);
+  return (r[EMAIL_KEY] as string) ?? undefined;
 }
 
 /** Valid tokens, silently re-minting if expired. Throws if interactive sign-in
@@ -101,7 +131,16 @@ async function mint(interactive: boolean): Promise<{ bundle: TokenBundle; code?:
 export async function getValidTokens(): Promise<TokenBundle> {
   const cached = await readCache();
   if (cached && cached.expiresAt > Date.now()) return cached;
-  return (await mint(false)).bundle; // prompt=none silent renew
+  // prompt=none silent renew, passing the account hint so it works on a
+  // multi-account profile. cached?.email covers the common case; the durable copy
+  // covers a post-restart renew where the session bundle is gone.
+  const hint = cached?.email ?? (await readStoredEmail());
+  try {
+    return (await mint(false, hint)).bundle;
+  } catch (err) {
+    console.warn('[auxilio] silent token renew failed', err);
+    throw err;
+  }
 }
 
 export async function signIn(): Promise<AuthStatus> {
@@ -129,13 +168,27 @@ export async function signOut(): Promise<void> {
     ).catch(() => {});
   }
   await chrome.storage.session.remove(KEY);
-  await chrome.storage.local.remove(CONNECTED_KEY);
+  await chrome.storage.local.remove([CONNECTED_KEY, EMAIL_KEY]);
 }
 
 export async function authStatus(): Promise<AuthStatus> {
   const cached = await readCache();
   if (cached && cached.expiresAt > Date.now()) {
     return { signedIn: true, email: cached.email };
+  }
+  // Cached access token expired (it lives in storage.session, ~1h, and is wiped on
+  // browser restart). Before reporting signed-out — which bounces the panel to the
+  // sign-in gate roughly every hour — try the same silent (prompt=none) renew the
+  // network path uses, but only if the user actually connected before. A successful
+  // renew keeps them signed in transparently as long as the Google session lives;
+  // only a genuine failure (revoked / really signed out) falls through to the gate.
+  if (await wasConnected()) {
+    try {
+      const bundle = await getValidTokens();
+      return { signedIn: true, email: bundle.email };
+    } catch {
+      return { signedIn: false };
+    }
   }
   return { signedIn: false };
 }

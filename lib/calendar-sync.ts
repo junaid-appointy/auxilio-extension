@@ -10,7 +10,7 @@
  */
 import { MAGIC_ADDRESS } from './config';
 import { encodeEid, isMarked, listEvents } from './calendar';
-import type { VisitorEventSummary } from './types';
+import type { PanelVisitorEvent, VisitorEventSummary } from './types';
 
 const SYNC_TOKEN_KEY = 'auxilio.syncToken';
 const MARKED_KEY = 'auxilio.markedEvents';
@@ -21,11 +21,24 @@ const MARKED_KEY = 'auxilio.markedEvents';
  *  won't appear here (full cross-channel truth needs an engine status endpoint —
  *  deferred). Pruned by HANDLED_TTL_MS. */
 const HANDLED_KEY = 'auxilio.handledEvents';
+/** iCalUids the ENGINE reports already have an active pass — i.e. handled through
+ *  ANY surface (add-on, another device), not just this extension. Overwritten on
+ *  each status poll (NOT durable like HANDLED_KEY): if passes are later cancelled
+ *  elsewhere, the next poll drops the uid and the event correctly resurfaces. */
+const ENGINE_HANDLED_KEY = 'auxilio.engineHandled';
 /** When the last FULL (tokenless) re-scan ran. Incremental sync only reports
  *  changes, so an event missed when its change was first consumed (e.g. a
  *  different magic address in an earlier build) is never re-examined until a full
  *  re-scan. We force one periodically + on install so the set self-heals. */
 const LAST_FULL_KEY = 'auxilio.lastFullSync';
+/** Signature of the sync-relevant config (magic address + query schema) at the
+ *  last run, so a plain reload can resume incremental sync instead of paying the
+ *  full forward-window scan every time. See syncConfigChanged. */
+const CONFIG_SIG_KEY = 'auxilio.configSig';
+/** Bump when the events.list query SHAPE changes (e.g. adding timeMax) so the next
+ *  load does one clean full re-scan to rebuild the marked set under the new query.
+ *  v2 = bounded forward window (timeMax). */
+const SYNC_SCHEMA_VERSION = 2;
 const PAST_GRACE_MS = 60 * 60_000; // keep events until 1h after they end
 const HANDLED_TTL_MS = 30 * 24 * 60 * 60_000; // forget "handled" after 30 days
 const FULL_RESYNC_INTERVAL_MS = 12 * 60 * 60_000; // re-scan the whole window twice a day
@@ -44,10 +57,24 @@ async function readHandled(): Promise<HandledMap> {
 }
 
 /** Drop the sync token so the next sync does a full tokenless re-scan of the
- *  forward window. Called on install/update so a config change (e.g. the magic
- *  address) takes effect immediately instead of waiting for the periodic resync. */
+ *  forward window. Called on a real config change so it takes effect immediately
+ *  instead of waiting for the periodic resync. */
 export async function clearSyncToken(): Promise<void> {
   await chrome.storage.local.remove([SYNC_TOKEN_KEY, LAST_FULL_KEY]);
+}
+
+/** Did the sync-relevant config (magic address or query schema) change since the
+ *  last run? That's the ONLY time we must drop the token for a full re-scan. A
+ *  plain reload leaves the signature unchanged, so it keeps the token and resumes
+ *  cheap incremental sync — instead of re-running the multi-second full scan (which
+ *  the MV3 worker can be killed in the middle of) on every reload. Records the new
+ *  signature as a side effect. The 12h periodic full re-scan still self-heals drift. */
+export async function syncConfigChanged(): Promise<boolean> {
+  const sig = `${MAGIC_ADDRESS}|v${SYNC_SCHEMA_VERSION}`;
+  const r = await chrome.storage.local.get(CONFIG_SIG_KEY);
+  if (r[CONFIG_SIG_KEY] === sig) return false;
+  await chrome.storage.local.set({ [CONFIG_SIG_KEY]: sig });
+  return true;
 }
 
 /** Record that passes were issued for this event — drops it from every nudge
@@ -57,6 +84,46 @@ export async function markHandled(eventId: string): Promise<void> {
   const handled = await readHandled();
   handled[eventId] = Date.now();
   await chrome.storage.local.set({ [HANDLED_KEY]: handled });
+}
+
+export async function readEngineHandled(): Promise<Set<string>> {
+  const r = await chrome.storage.local.get(ENGINE_HANDLED_KEY);
+  return new Set((r[ENGINE_HANDLED_KEY] as string[]) ?? []);
+}
+
+/** Has this event already been handled (passes issued) from THIS extension? Reads
+ *  the local handled overlay — lets the in-page optimistic nudge skip an event the
+ *  user already sent passes for, instead of re-nudging when they reopen/close it
+ *  (the sync set already filters handled events, but the optimistic DOM guess
+ *  bypasses that filter). engineHandled isn't consulted here: it's keyed by iCalUid,
+ *  which the optimistic path doesn't have. */
+export async function isEventHandled(eventId: string): Promise<boolean> {
+  if (!eventId) return false;
+  const handled = await readHandled();
+  return !!handled[eventId];
+}
+
+/** iCalUids of marked events that aren't LOCALLY handled — the candidate set to
+ *  ask the engine about. Deliberately ignores engineHandled: we must keep asking
+ *  about already-engine-handled events so a pass cancelled elsewhere is re-detected
+ *  and the event resurfaces. */
+export async function listPendingICalUids(): Promise<string[]> {
+  const [marked, handled] = await Promise.all([readMarked(), readHandled()]);
+  const uids = new Set<string>();
+  for (const m of Object.values(marked)) {
+    if (handled[m.eventId]) continue;
+    if (m.iCalUid) uids.add(m.iCalUid);
+  }
+  return [...uids];
+}
+
+/** Replace the engine-handled iCalUid set with the latest status answer. Overwrite
+ *  (not merge) so events whose passes were cancelled elsewhere drop out and
+ *  resurface. Lower-cased for case-insensitive matching against marked iCalUids. */
+export async function setEngineHandled(iCalUids: string[]): Promise<void> {
+  await chrome.storage.local.set({
+    [ENGINE_HANDLED_KEY]: [...new Set(iCalUids.map((u) => u.toLowerCase()))],
+  });
 }
 
 export interface SyncResult {
@@ -88,8 +155,10 @@ async function doRunSync(accessToken: string): Promise<SyncResult> {
     SYNC_TOKEN_KEY,
     MARKED_KEY,
     HANDLED_KEY,
+    ENGINE_HANDLED_KEY,
     LAST_FULL_KEY,
   ]);
+  const engineHandled = new Set((store[ENGINE_HANDLED_KEY] as string[]) ?? []);
   // The set we knew BEFORE this sync — the baseline for "what's genuinely new"
   // (so a full re-scan that re-discovers the whole window doesn't re-notify).
   const prevMarked = (store[MARKED_KEY] as MarkedMap) ?? {};
@@ -208,10 +277,14 @@ async function doRunSync(accessToken: string): Promise<SyncResult> {
   });
 
   // markedCount drives the toolbar badge — count distinct pending series (a
-  // recurring event counts once, not once per occurrence).
+  // recurring event counts once, not once per occurrence), excluding events the
+  // engine already handled elsewhere. Uses the engineHandled set from the start
+  // of this sync; the post-sync status poll reconciles the badge if it changed.
   const pendingSeries = new Set<string>();
   for (const id of Object.keys(marked)) {
-    if (!handled[id]) pendingSeries.add(marked[id].seriesId ?? id);
+    if (handled[id]) continue;
+    if (engineHandled.has((marked[id].iCalUid ?? '').toLowerCase())) continue;
+    pendingSeries.add(marked[id].seriesId ?? id);
   }
   return { changedIds, newMarked, cancelledIds, markedCount: pendingSeries.size };
 }
@@ -220,10 +293,15 @@ async function doRunSync(accessToken: string): Promise<SyncResult> {
  *  picker and the in-page nudge. Handled events are filtered out, and a recurring
  *  series collapses to its soonest pending occurrence (one row, not one per week). */
 export async function listMarked(): Promise<VisitorEventSummary[]> {
-  const [marked, handled] = await Promise.all([readMarked(), readHandled()]);
+  const [marked, handled, engineHandled] = await Promise.all([
+    readMarked(),
+    readHandled(),
+    readEngineHandled(),
+  ]);
   const bySeries = new Map<string, VisitorEventSummary>();
   for (const m of Object.values(marked)) {
     if (handled[m.eventId]) continue;
+    if (engineHandled.has((m.iCalUid ?? '').toLowerCase())) continue;
     const key = m.seriesId ?? m.eventId;
     const existing = bySeries.get(key);
     if (!existing || (m.start ?? '~').localeCompare(existing.start ?? '~') < 0) {
@@ -233,6 +311,44 @@ export async function listMarked(): Promise<VisitorEventSummary[]> {
   return [...bySeries.values()].sort((a, b) =>
     (a.start ?? '').localeCompare(b.start ?? ''),
   );
+}
+
+/** Every upcoming visitor event for the side-panel homescreen — the MANAGEMENT
+ *  surface. Unlike listMarked (which feeds the nag surfaces and hides handled
+ *  events), this INCLUDES sent events tagged `status:'sent'` so a host can reopen
+ *  one to update or cancel, and so the screen confirms finished work instead of
+ *  going barren after the last send. Series-collapsed to one row: a recurring
+ *  series is 'pending' if ANY occurrence in the window still needs passes (shown at
+ *  its soonest pending occurrence), otherwise 'sent' (shown at its soonest). */
+export async function listForPanel(): Promise<PanelVisitorEvent[]> {
+  const [marked, handled, engineHandled] = await Promise.all([
+    readMarked(),
+    readHandled(),
+    readEngineHandled(),
+  ]);
+  const isSent = (m: VisitorEventSummary) =>
+    !!handled[m.eventId] || engineHandled.has((m.iCalUid ?? '').toLowerCase());
+  const earlier = (a: VisitorEventSummary, b?: VisitorEventSummary) =>
+    !b || (a.start ?? '~').localeCompare(b.start ?? '~') < 0;
+
+  const bySeries = new Map<
+    string,
+    { soonestAny: VisitorEventSummary; soonestPending?: VisitorEventSummary }
+  >();
+  for (const m of Object.values(marked)) {
+    const key = m.seriesId ?? m.eventId;
+    const entry = bySeries.get(key) ?? { soonestAny: m };
+    if (earlier(m, entry.soonestAny)) entry.soonestAny = m;
+    if (!isSent(m) && earlier(m, entry.soonestPending)) entry.soonestPending = m;
+    bySeries.set(key, entry);
+  }
+
+  const rows: PanelVisitorEvent[] = [...bySeries.values()].map((e) =>
+    e.soonestPending
+      ? { ...e.soonestPending, status: 'pending' }
+      : { ...e.soonestAny, status: 'sent' },
+  );
+  return rows.sort((a, b) => (a.start ?? '').localeCompare(b.start ?? ''));
 }
 
 /** Is this event id currently a known visitor event? */

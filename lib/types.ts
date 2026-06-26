@@ -8,6 +8,12 @@ export type DraftGuestStatus = 'pending' | 'sending' | 'sent' | 'cancelled';
 export interface DraftGuest {
   email: string;
   name: string;
+  /** True when `name` is the email-derived fallback, not a real display name
+   *  (Google omits displayName for external non-contact guests). Drives the card's
+   *  avatar/label and is cleared once the contacts resolver finds a real name. */
+  nameIsFallback?: boolean;
+  /** Profile photo URL when resolved (People API). Falls back to a monogram. */
+  photoUrl?: string;
   phone?: string;
   /** Host include/exclude toggle. */
   include: boolean;
@@ -84,6 +90,8 @@ export interface SendResponse {
   iCalUid: string;
   created: PassResult[];
   cancelled: { visitorEmail: string; invitationId: string }[];
+  /** Already-issued passes whose details (name/phone) were updated + email resent. */
+  updated?: { visitorEmail: string; invitationId: string; changedFields: string[] }[];
   failed: { visitorEmail: string; reason: string }[];
   activeCount: number;
   draft: VisitDraft;
@@ -122,6 +130,13 @@ export interface AuthStatus {
   email?: string;
 }
 
+/** A guest's real name + profile photo resolved from the host's Google contacts
+ *  (People API), mirroring how Calendar's web UI shows names the event API omits. */
+export interface ResolvedPerson {
+  name?: string;
+  photoUrl?: string;
+}
+
 /** A visitor (magic-address) event surfaced by the sync poll — for the
  *  "open from list" picker and notifications. `eid` resolves like a clicked one. */
 export interface VisitorEventSummary {
@@ -134,4 +149,14 @@ export interface VisitorEventSummary {
    *  recurring series be treated as one nudge unit — one badge, one notification,
    *  one picker row showing the soonest pending occurrence. */
   seriesId?: string;
+}
+
+/** A visitor event as shown on the side-panel homescreen — a MANAGEMENT surface,
+ *  so unlike the nag surfaces (badge/notification/in-page banner) it also lists
+ *  events whose passes are already sent, tagged `status:'sent'`, so the host can
+ *  reopen them to update or cancel. */
+export interface PanelVisitorEvent extends VisitorEventSummary {
+  /** 'pending' = still needs passes; 'sent' = passes already issued (this
+   *  extension, the add-on, or another device). */
+  status: 'pending' | 'sent';
 }

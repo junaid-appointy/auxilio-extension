@@ -11,12 +11,29 @@ import {
 } from '@/lib/messaging';
 import { authStatus, getValidTokens, signIn, signOut, wasConnected } from '@/lib/auth';
 import { decodeEid, encodeEid, fetchActiveEvent } from '@/lib/calendar';
-import { clearSyncToken, listMarked, markHandled, runSync } from '@/lib/calendar-sync';
+import {
+  clearSyncToken,
+  isEventHandled,
+  listForPanel,
+  listMarked,
+  listPendingICalUids,
+  markHandled,
+  readEngineHandled,
+  runSync,
+  setEngineHandled,
+  syncConfigChanged,
+} from '@/lib/calendar-sync';
 import { EngineError, engine } from '@/lib/engine';
+import { resolveGuests } from '@/lib/people';
 import type { VisitorEventSummary } from '@/lib/types';
 
 const SYNC_ALARM = 'auxilio-sync';
 const BADGE_COLOR = '#92288E';
+// Cross-channel status poll throttle: don't ask the engine "which are handled"
+// every alarm tick. Poll when the pending iCalUid set changes, else at most this
+// often. Stored in storage.local so the throttle survives SW restarts.
+const STATUS_POLL_KEY = 'auxilio.statusPoll';
+const STATUS_POLL_INTERVAL_MS = 5 * 60_000;
 // Muted/error badge for a recoverable auth lapse — visually distinct from the
 // brand-tinted visitor-count badge so "nudging is offline" never reads as a count.
 const LAPSED_BADGE_COLOR = '#B3261E';
@@ -41,10 +58,15 @@ export default defineBackground(() => {
   chrome.alarms.create(SYNC_ALARM, { periodInMinutes: 1 });
   chrome.runtime.onInstalled.addListener(() => {
     chrome.alarms.create(SYNC_ALARM, { periodInMinutes: 1 });
-    // Re-scan from scratch on install/update: a config change (e.g. the magic
-    // address) only takes effect on a full sync, since incremental never
-    // re-reports an already-consumed change. clearSyncToken forces that.
-    void clearSyncToken().then(() => doSync());
+    // Only force a full tokenless re-scan when the sync-relevant config actually
+    // changed (magic address / query schema) — incremental never re-reports an
+    // already-consumed change, so a real config change needs the token dropped.
+    // A plain reload keeps the token and resumes cheap incremental sync, instead
+    // of paying the multi-second full forward-window scan (which the MV3 worker
+    // can be killed mid-flight) on every reload. The 12h re-scan self-heals drift.
+    void syncConfigChanged().then((changed) =>
+      (changed ? clearSyncToken() : Promise.resolve()).then(() => doSync()),
+    );
   });
   chrome.runtime.onStartup.addListener(() => void doSync());
   chrome.alarms.onAlarm.addListener((a) => {
@@ -78,9 +100,9 @@ export default defineBackground(() => {
 // ─────────────────────────── sync loop ───────────────────────────
 
 async function doSync(): Promise<void> {
-  let accessToken: string;
+  let tokens: { idToken: string; accessToken: string };
   try {
-    accessToken = (await getValidTokens()).accessToken;
+    tokens = await getValidTokens();
   } catch {
     // Token unavailable. If the user was connected, this is a recoverable lapse
     // (storage.session wiped on restart, or silent renew failed) — surface it so
@@ -90,7 +112,7 @@ async function doSync(): Promise<void> {
   }
   let result;
   try {
-    result = await runSync(accessToken);
+    result = await runSync(tokens.accessToken);
   } catch (err) {
     console.warn('[auxilio] sync failed', err);
     return;
@@ -99,19 +121,27 @@ async function doSync(): Promise<void> {
   // Got here with working tokens → any prior lapse is over.
   await setLapsed(false);
 
-  // Toolbar badge = number of upcoming visitor events (the on-icon nudge).
-  await chrome.action.setBadgeBackgroundColor({ color: BADGE_COLOR });
-  await chrome.action.setBadgeText({
-    text: result.markedCount > 0 ? String(result.markedCount) : '',
-  });
+  // Cross-channel suppression: ask the engine which marked events already have an
+  // active pass (issued via the add-on or another device), so we don't nag for
+  // them. Gated/throttled so this isn't a per-minute engine call.
+  const engineHandled = await maybePollEngineStatus(tokens.idToken);
 
-  // OS notification for each newly-discovered visitor event (out-of-tab alert).
-  for (const ev of result.newMarked) notifyVisitorEvent(ev);
+  // Toolbar badge = distinct visitor events still needing passes (engine-filtered,
+  // series-collapsed) — sourced from listMarked so it matches the banner exactly.
+  const targets = await listMarked();
+  await chrome.action.setBadgeBackgroundColor({ color: BADGE_COLOR });
+  await chrome.action.setBadgeText({ text: targets.length > 0 ? String(targets.length) : '' });
+
+  // OS notification for each newly-discovered visitor event (out-of-tab alert) —
+  // but never for one the engine has already handled elsewhere.
+  for (const ev of result.newMarked) {
+    if (!engineHandled.has((ev.iCalUid ?? '').toLowerCase())) notifyVisitorEvent(ev);
+  }
 
   // In-page nudge banner: push the current marked set to calendar tabs, plus
   // any events that just stopped being pending (deleted/cancelled) so the page
   // can purge stale optimistic nudges for them.
-  broadcastNudge(await listMarked(), result.cancelledIds);
+  broadcastNudge(targets, result.cancelledIds);
 
   // If the event the panel is showing changed (post-save), tell it to refetch.
   const stored = await chrome.storage.session.get(ACTIVE_EID_KEY);
@@ -119,6 +149,36 @@ async function doSync(): Promise<void> {
   if (activeEid) {
     const dec = decodeEid(activeEid);
     if (dec && result.changedIds.has(dec.eventId)) broadcastRefreshActive();
+  }
+}
+
+/** Ask the engine which pending events already have an active pass (handled via
+ *  any surface), and cache the answer. Throttled: re-polls when the pending set
+ *  changes, else at most every STATUS_POLL_INTERVAL_MS. Degrades gracefully — if
+ *  the engine/route is unreachable it keeps the last known set (local-only
+ *  suppression still works). Returns the (lower-cased) engine-handled set. */
+async function maybePollEngineStatus(idToken: string): Promise<Set<string>> {
+  const uids = await listPendingICalUids();
+  if (uids.length === 0) {
+    await setEngineHandled([]); // nothing pending → clear the cache
+    return new Set();
+  }
+  const sig = [...uids].sort().join('|');
+  const store = await chrome.storage.local.get(STATUS_POLL_KEY);
+  const last = store[STATUS_POLL_KEY] as { at: number; sig: string } | undefined;
+  const fresh = last && Date.now() - last.at < STATUS_POLL_INTERVAL_MS;
+  if (last && last.sig === sig && fresh) return readEngineHandled(); // reuse cache
+
+  // Stamp the throttle now (before the call) so a missing/erroring route backs off
+  // instead of retrying every tick. A changed signature still forces a re-poll.
+  await chrome.storage.local.set({ [STATUS_POLL_KEY]: { at: Date.now(), sig } });
+  try {
+    const { active } = await engine.status(idToken, uids);
+    await setEngineHandled(active);
+    return new Set(active.map((u) => u.toLowerCase()));
+  } catch (err) {
+    console.warn('[auxilio] engine status poll failed; keeping last known', err);
+    return readEngineHandled();
   }
 }
 
@@ -275,6 +335,9 @@ async function handle(
 
     case 'DRAFT_LOAD':
       return withIdToken((t) => engine.loadDraft(t, msg.event));
+    case 'RESOLVE_GUESTS':
+      // Best-effort People API name/photo lookup with the host's access_token.
+      return withTokens((t) => resolveGuests(t.accessToken, msg.emails));
     case 'DRAFT_PATCH':
       return withIdToken((t) => engine.patchDraft(t, msg.iCalUid, msg.patch));
     case 'PREVIEW':
@@ -283,11 +346,19 @@ async function handle(
       return withTokens(async (t) => {
         const result = await engine.send(t.idToken, msg.iCalUid, msg.start, msg.end);
         // Passes are now issued (or remain issued after an update) → drop this
-        // event from the nudge surfaces. Keyed by the event id the sync tracks
-        // (providerEventId), so the badge/banner stop nagging immediately.
-        if (result.activeCount > 0 && result.draft.providerEventId) {
-          await markHandled(result.draft.providerEventId);
-          await refreshNudgeSurfaces();
+        // event from the nudge surfaces. Prefer the event id we already hold
+        // locally (the active eid — exactly the key the marked set uses); fall
+        // back to the engine's echoed providerEventId. Not relying on the echo
+        // closes a silent gap where a draft without providerEventId would never
+        // get suppressed.
+        if (result.activeCount > 0) {
+          const stored = await chrome.storage.session.get(ACTIVE_EID_KEY);
+          const eid = stored[ACTIVE_EID_KEY] as string | undefined;
+          const eventId = (eid && decodeEid(eid)?.eventId) || result.draft.providerEventId;
+          if (eventId) {
+            await markHandled(eventId);
+            await refreshNudgeSurfaces();
+          }
         }
         return result;
       });
@@ -305,13 +376,20 @@ async function handle(
         } catch (err) {
           console.warn('[auxilio] LIST_VISITOR_EVENTS refresh failed; serving cached set', err);
         }
-        return listMarked();
+        // Homescreen is a management surface: list pending AND already-sent events
+        // (tagged status) — unlike the nag surfaces, which use listMarked.
+        return listForPanel();
       });
 
     case 'GET_NUDGE_TARGETS':
       // Cheap read of the last-synced marked set (no token / no sync) — lets the
       // content script seed its banner immediately on page load.
       return ok(await listMarked());
+
+    case 'IS_EVENT_HANDLED':
+      // Lets the in-page optimistic nudge skip an event whose passes were already
+      // sent from this extension (the sync filters these, the optimistic path can't).
+      return ok({ handled: await isEventHandled(msg.eventId) });
 
     case 'SYNC_NOW':
       // On-demand sync (page load / tab focus / just left the editor) so the

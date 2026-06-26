@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, Phone, User } from 'lucide-react';
 import { Chip, Switch, TextField } from '@/design/components';
 import type { DraftGuest } from '@/lib/types';
@@ -32,9 +32,64 @@ export function RosterRow({
   // pushes the change onto the already-issued pass.
   const [editing, setEditing] = useState(false);
 
-  // Keep local inputs in sync when the server reconciles the row.
-  useEffect(() => setName(guest.name), [guest.name]);
-  useEffect(() => setPhone(guest.phone ?? ''), [guest.phone]);
+  // Reconcile server/background updates WITHOUT clobbering a live edit: adopt the
+  // new server value only when the local field still equals the last server value
+  // we saw (the host hasn't typed over it). So a background name/photo resolve fills
+  // an untouched field, but a half-typed correction is never lost. (See the contacts
+  // name-resolution flow — the name can change after first paint.)
+  // Capture the PREVIOUS server value before mutating the ref: setName's functional
+  // updater runs lazily (next commit), so reassigning the ref first would make the
+  // updater compare against the new value and never adopt it. Snapshot prev, point
+  // the ref at the new value, then compare the updater's local to that snapshot.
+  const lastServerName = useRef(guest.name);
+  useEffect(() => {
+    const prev = lastServerName.current;
+    lastServerName.current = guest.name;
+    setName((local) => (local === prev ? guest.name : local));
+  }, [guest.name]);
+
+  const lastServerPhone = useRef(guest.phone ?? '');
+  useEffect(() => {
+    const next = guest.phone ?? '';
+    const prev = lastServerPhone.current;
+    lastServerPhone.current = next;
+    setPhone((local) => (local === prev ? next : local));
+  }, [guest.phone]);
+
+  // Commit name/phone edits as the host TYPES (debounced), not only on blur, so the
+  // Review button reflects the change right away and the edit is persisted sooner —
+  // it can't be "lost" by a re-render before a blur ever fires (the reported bug).
+  // Blur flushes any pending debounce immediately. onChange is idempotent per field,
+  // so a flush after a debounce that already ran is a harmless no-op.
+  const nameTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const phoneTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(
+    () => () => {
+      clearTimeout(nameTimer.current);
+      clearTimeout(phoneTimer.current);
+    },
+    [],
+  );
+  const commitName = (v: string) => {
+    clearTimeout(nameTimer.current);
+    nameTimer.current = setTimeout(() => {
+      if (v !== guest.name) onChange({ name: v });
+    }, 500);
+  };
+  const flushName = (v: string) => {
+    clearTimeout(nameTimer.current);
+    if (v !== guest.name) onChange({ name: v });
+  };
+  const commitPhone = (v: string) => {
+    clearTimeout(phoneTimer.current);
+    phoneTimer.current = setTimeout(() => {
+      if (v !== (guest.phone ?? '')) onChange({ phone: v });
+    }, 500);
+  };
+  const flushPhone = (v: string) => {
+    clearTimeout(phoneTimer.current);
+    if (v !== (guest.phone ?? '')) onChange({ phone: v });
+  };
 
   const sent = guest.status === 'sent';
   const cancelled = guest.status === 'cancelled';
@@ -45,6 +100,21 @@ export function RosterRow({
   // for can be corrected, whether or not their pass already went out.
   const pendingCancel = sent && !guest.include;
   const editable = guest.include && !cancelled;
+
+  // The drawer handle names exactly what's still missing, so the host knows what
+  // tapping it is for. A real name is absent when the engine flagged the name as the
+  // email-derived fallback; phone is absent when blank.
+  const hasName = !guest.nameIsFallback;
+  const hasPhone = !!guest.phone?.trim();
+  const drawerLabel = editing
+    ? 'Hide details'
+    : hasName && hasPhone
+      ? 'Edit details'
+      : !hasName && !hasPhone
+        ? 'Add phone and name'
+        : hasPhone
+          ? 'Add name'
+          : 'Add phone';
 
   // Switch is no longer locked once a pass is sent: toggling off cancels on the
   // next update (mirrors the add-on), toggling back on re-issues.
@@ -72,7 +142,11 @@ export function RosterRow({
           }
           aria-hidden
         >
-          {monogram(guest.name || guest.email.split('@')[0])}
+          {guest.photoUrl ? (
+            <img className="guest__photo" src={guest.photoUrl} alt="" loading="lazy" />
+          ) : (
+            monogram(guest.name || guest.email.split('@')[0])
+          )}
         </span>
 
         <div className="guest__id">
@@ -105,7 +179,7 @@ export function RosterRow({
             onClick={() => setEditing((v) => !v)}
           >
             <ChevronDown size={16} strokeWidth={2} className="guest__chev" />
-            {editing ? 'Hide details' : guest.phone ? 'Edit details' : 'Add phone & name'}
+            {drawerLabel}
           </button>
           {editing && (
             <div className="guest__form">
@@ -113,24 +187,25 @@ export function RosterRow({
                 label="Visitor name"
                 value={name}
                 leadingIcon={<User size={16} strokeWidth={2} />}
-                onChange={(e) => setName(e.target.value)}
-                onBlur={() => name !== guest.name && onChange({ name })}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  commitName(e.target.value);
+                }}
+                onBlur={() => flushName(name)}
                 placeholder="Full name"
               />
               <TextField
-                label="Phone (for WhatsApp pass)"
+                label="Phone"
                 value={phone}
                 inputMode="tel"
                 leadingIcon={<Phone size={16} strokeWidth={2} />}
-                onChange={(e) => setPhone(e.target.value)}
-                onBlur={() => phone !== (guest.phone ?? '') && onChange({ phone })}
+                onChange={(e) => {
+                  setPhone(e.target.value);
+                  commitPhone(e.target.value);
+                }}
+                onBlur={() => flushPhone(phone)}
                 placeholder="+91…"
               />
-              {sent && (
-                <div className="type-label-sm text-muted">
-                  Re-send to push this change onto the pass already issued.
-                </div>
-              )}
             </div>
           )}
         </div>

@@ -254,15 +254,31 @@ export default defineContentScript({
           title: lastSnapshot.title ?? '',
         };
       } else if (!surface && pendingMagic) {
-        nudge.addOptimistic({
-          eid: pendingMagic.eid,
-          eventId: pendingMagic.eventId,
-          iCalUid: '',
-          title: pendingMagic.title,
-          start: undefined,
-        });
-        syncBurst(); // confirm/refresh from the API right after
+        const pm = pendingMagic;
         pendingMagic = null;
+        // Only show the INSTANT nudge when we actually scraped a title — a nameless
+        // banner reads as broken (the user's report). If the title scrape missed,
+        // skip the optimistic path and let the (now bounded, ~2s) API sync deliver
+        // the named nudge a moment later. syncBurst fires either way.
+        if (pm.title) {
+          // …but NOT for an event whose passes are already sent: viewing+closing it
+          // must not re-nudge (the sync set filters handled events; this optimistic
+          // path bypasses that, so check the background's handled overlay first).
+          safeSend<{ ok?: boolean; data?: { handled?: boolean } }>({
+            type: 'IS_EVENT_HANDLED',
+            eventId: pm.eventId,
+          }).then((res) => {
+            if (res?.ok && res.data?.handled) return; // already done → no nudge
+            nudge.addOptimistic({
+              eid: pm.eid,
+              eventId: pm.eventId,
+              iCalUid: '',
+              title: pm.title,
+              start: undefined,
+            });
+          });
+        }
+        syncBurst(); // confirm/refresh from the API right after (named nudge)
       }
 
       // Show the button on any open event surface — including while the panel is
@@ -438,6 +454,16 @@ function createButtonUI(onClick: () => void) {
     // Full-screen edit page → our own row just BELOW the Availability/Visibility
     // info section (falling back to above Description).
     if (/\/eventedit/.test(location.pathname)) {
+      // Primary: an inline button right before the native "Save" in the editor's
+      // action bar, so it sits next to Save / More options and reads as a native
+      // inline action — what the host wants on a new/unsaved event.
+      const save = findButtonByText('save');
+      const saveParent = save?.parentElement;
+      if (save && saveParent) {
+        return { insert: (el) => saveParent.insertBefore(el, save), inset: 0, inline: true };
+      }
+      // Fallback: our own full-width row just BELOW the Availability/Visibility info
+      // section (else above Description) when the action bar can't be found.
       const avail = findAvailabilityInfo();
       const afterAvail = avail ? rowsListFor(avail) : null;
       if (afterAvail) {
@@ -450,16 +476,22 @@ function createButtonUI(onClick: () => void) {
         const { list, row } = aboveDesc;
         return { insert: (el) => list.insertBefore(el, row), inset: rowInset(row, list) };
       }
-      // Fallback within the edit page: inline, right before the native "Save".
-      const save = findButtonByText('save');
-      const parent = save?.parentElement;
-      if (save && parent) return { insert: (el) => parent.insertBefore(el, save), inset: 0, inline: true };
       return null;
     }
     // Detail popover / modal → BOTTOM of the OUTERMOST content list (after every
     // section, including the guest list). Robust whether or not guests exist.
     const dialog = document.querySelector<HTMLElement>('[role="dialog"]');
     if (dialog) {
+      // Quick-create popover carries a "Save" (and usually "More options"). Sit
+      // inline right before it so we read as one of its action buttons — the same
+      // inline feel as the editor. A saved-event DETAIL popover has no "Save"
+      // (Edit/Delete instead), so this never fires there and we keep the row at the
+      // bottom of its content list.
+      const save = findButtonByText('save');
+      if (save && dialog.contains(save) && save.parentElement) {
+        const parent = save.parentElement;
+        return { insert: (el) => parent.insertBefore(el, save), inset: 0, inline: true };
+      }
       const list = findContentList(dialog);
       if (list) {
         const ref = firstIconLedRow(list);
@@ -491,6 +523,13 @@ function createButtonUI(onClick: () => void) {
     injected = null;
   }
 
+  // Debounce HIDING so a transient "surface gone" tick during Google's initial
+  // SPA hydration (it tears the event surface down and rebuilds it several times
+  // on a page refresh) doesn't flash the button away and back. We only remove the
+  // button if the surface stays gone for HIDE_GRACE_MS; a re-appearance cancels it.
+  let hideTimer: ReturnType<typeof setTimeout> | undefined;
+  const HIDE_GRACE_MS = 400;
+
   return {
     // `allowFab` gates the floating fallback. It's only there to surface the
     // panel when we can't inject a native button; with the panel already open
@@ -500,10 +539,16 @@ function createButtonUI(onClick: () => void) {
     update(show: boolean, allowFab = true) {
       clearTimeout(retryTimer);
       if (!show) {
-        removeInjected();
-        fab.setVisible(false);
+        // Defer the hide: if the surface comes right back (hydration churn), the
+        // next update(true) cancels this and the button never visibly disappears.
+        clearTimeout(hideTimer);
+        hideTimer = setTimeout(() => {
+          removeInjected();
+          fab.setVisible(false);
+        }, HIDE_GRACE_MS);
         return;
       }
+      clearTimeout(hideTimer); // surface is present → cancel any pending hide
       // Try to inject now; if the anchor isn't in the DOM / laid out yet (Google
       // is still rendering the surface), keep retrying for a few seconds. The
       // MutationObserver covers DOM changes, but layout can settle — giving
@@ -783,11 +828,17 @@ function buildInjectedRow(onClick: () => void, inset: number): HTMLElement {
   return row;
 }
 
-/** Inline button for the before-Save fallback (sits next to a native action). */
+/** Inline button that sits in the editor / quick-create action bar, next to the
+ *  native "More options" / "Save". As an inline-flex box it would otherwise align
+ *  to the row's text baseline (riding slightly high with a gap beneath); center it
+ *  for both the inline-block case (vertical-align) and the flex-row case (align-self
+ *  — so it doesn't stretch taller than its neighbours either). */
 function buildInlineButton(onClick: () => void): HTMLButtonElement {
   const btn = makeNativeButton(onClick);
   btn.id = INJECT_ID;
   btn.style.marginRight = '8px';
+  btn.style.verticalAlign = 'middle';
+  btn.style.alignSelf = 'center';
   return btn;
 }
 
@@ -903,10 +954,12 @@ function mountNudge() {
         transition:opacity 200ms cubic-bezier(.2,0,0,1),transform 200ms cubic-bezier(.2,0,0,1);
       }
       .banner.show{opacity:1;transform:none;pointer-events:auto;}
-      .icon{display:inline-flex;color:#92288e;flex:0 0 auto;}
-      .text{font-size:13.5px;line-height:18px;}
-      .text b{font-weight:600;}
-      .actions{display:flex;align-items:center;gap:4px;flex:0 0 auto;}
+      .icon{display:inline-flex;color:#92288e;flex:0 0 auto;align-self:flex-start;margin-top:1px;}
+      .text{display:flex;flex-direction:column;gap:1px;min-width:0;}
+      /* Event name is the hero: prominent, ellipsised; the action reads as the subtitle. */
+      .title{font-size:14.5px;font-weight:600;line-height:19px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+      .sub{font-size:12px;line-height:15px;opacity:.7;}
+      .actions{display:flex;align-items:center;gap:4px;flex:0 0 auto;align-self:center;}
       .manage{font:inherit;font-size:13px;font-weight:600;color:#fff;background:#92288e;
         border:none;border-radius:999px;padding:8px 14px;cursor:pointer;}
       .manage:hover{box-shadow:0 2px 6px rgba(0,0,0,.2);}
@@ -917,14 +970,18 @@ function mountNudge() {
     </style>
     <div class="banner">
       <span class="icon">${BELL_SVG}</span>
-      <span class="text"></span>
+      <span class="text">
+        <span class="title"></span>
+        <span class="sub"></span>
+      </span>
       <span class="actions">
         <button class="manage" type="button">Manage</button>
         <button class="dismiss" type="button" aria-label="Dismiss">${NUDGE_X_SVG}</button>
       </span>
     </div>`;
   const wrap = root.querySelector('.banner') as HTMLDivElement;
-  const text = root.querySelector('.text') as HTMLSpanElement;
+  const titleEl = root.querySelector('.title') as HTMLSpanElement;
+  const subEl = root.querySelector('.sub') as HTMLSpanElement;
   const manageBtn = root.querySelector('.manage') as HTMLButtonElement;
   const dismissBtn = root.querySelector('.dismiss') as HTMLButtonElement;
   shieldInteractions(host);
@@ -975,9 +1032,12 @@ function mountNudge() {
       return;
     }
     const more = merged().filter((x) => !dismissed.has(x.eventId)).length - 1;
-    text.innerHTML =
-      `<b>Visitor event needs passes.</b> ${escapeText(t.title || '')}` +
-      (more > 0 ? ` <span style="opacity:.7">+${more} more</span>` : '');
+    // Event name is the hero (title row); the "needs passes" prompt is the subtitle.
+    // Fall back to a generic title only when we genuinely have no event name.
+    const name = t.title?.trim();
+    titleEl.textContent = name || 'Visitor event';
+    subEl.textContent =
+      'Needs visitor passes' + (more > 0 ? ` · +${more} more` : '');
     wrap.classList.add('show');
   }
 

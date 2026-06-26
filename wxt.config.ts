@@ -14,6 +14,8 @@ export default defineConfig({
     host_permissions: [
       'https://calendar.google.com/*',
       'https://www.googleapis.com/*',
+      // People API (guest name + photo resolution) lives on its own host.
+      'https://people.googleapis.com/*',
       // Engine: deployed bifrost dev + the local reserved backend tunnel.
       'https://ops-engine-dev-330299.bifrost.saastack.site/*',
       'https://unyearning-olympia-unclimactic.ngrok-free.dev/*',

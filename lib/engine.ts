@@ -98,6 +98,12 @@ export const engine = {
   send: (idToken: string, iCalUid: string, start?: string, end?: string) =>
     call<SendResponse>('send', 'POST', idToken, { iCalUid, start, end }),
 
+  /** Read-only batch check: which of these events already have an active pass
+   *  (through any surface). Lets the background poll suppress cross-channel nudges.
+   *  Side-effect-free on the engine — safe to poll. */
+  status: (idToken: string, iCalUids: string[]) =>
+    call<{ active: string[] }>('status', 'POST', idToken, { iCalUids }),
+
   cancelGuest: (idToken: string, iCalUid: string, invitationId: string) =>
     call<{ invitationId: string; cancelled: boolean }>(
       'cancel-guest',

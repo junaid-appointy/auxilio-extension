@@ -1,12 +1,14 @@
-import { CalendarClock, ChevronRight, UserPlus } from 'lucide-react';
+import { CalendarClock, CheckCircle2, ChevronRight, UserPlus } from 'lucide-react';
 import { Card, Spinner } from '@/design/components';
-import type { AuthStatus, VisitorEventSummary } from '@/lib/types';
+import type { AuthStatus, PanelVisitorEvent } from '@/lib/types';
 import { SignInGate } from './SignInGate';
 
 /**
- * Shown when no event is active. Doubles as the "open from list" fallback if
- * click-detection ever breaks: pick an upcoming visitor event to register.
- * Signed-out users get the sign-in here too (no need to open an event first).
+ * Shown when no event is active — the homescreen. A MANAGEMENT surface: it lists
+ * both visitor events still needing passes and ones whose passes are already sent
+ * (so finished work is confirmed, not silently hidden, and a sent event can be
+ * reopened to update or cancel). Doubles as the "open from list" fallback if
+ * click-detection ever breaks. Signed-out users get the sign-in here too.
  */
 export function EmptyState({
   auth,
@@ -15,9 +17,9 @@ export function EmptyState({
   onPick,
 }: {
   auth: AuthStatus | undefined;
-  events: VisitorEventSummary[] | undefined;
+  events: PanelVisitorEvent[] | undefined;
   loading: boolean;
-  onPick: (ev: VisitorEventSummary) => void;
+  onPick: (ev: PanelVisitorEvent) => void;
 }) {
   if (!auth) {
     return (
@@ -29,6 +31,10 @@ export function EmptyState({
   if (!auth.signedIn) {
     return <SignInGate reason="Sign in to see your visitor events and register passes." />;
   }
+
+  const pending = (events ?? []).filter((e) => e.status === 'pending');
+  const sent = (events ?? []).filter((e) => e.status === 'sent');
+  const firstLoad = loading && !events;
 
   return (
     <div style={{ padding: 'var(--space-lg)', display: 'grid', gap: 'var(--space-lg)' }}>
@@ -61,61 +67,104 @@ export function EmptyState({
         </span>
       </Card>
 
-      <section>
-        <div
-          className="type-label-sm text-muted"
-          style={{ textTransform: 'uppercase', marginBottom: 4 }}
-        >
-          Visitor events needing passes
-        </div>
-
-        {loading && !events ? (
+      <Section title="Visitor events needing passes">
+        {firstLoad ? (
           <Centered>
             <Spinner size={20} />
           </Centered>
-        ) : events && events.length > 0 ? (
-          <Card style={{ paddingTop: 0, paddingBottom: 0 }}>
-            {events.map((ev) => (
-              <button
-                key={ev.eid}
-                className="row"
-                onClick={() => onPick(ev)}
-                style={{
-                  width: '100%',
-                  background: 'transparent',
-                  border: 'none',
-                  font: 'inherit',
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                }}
-              >
-                <CalendarClock
-                  size={18}
-                  strokeWidth={2}
-                  style={{ flex: '0 0 auto', color: 'var(--color-on-surface-variant)' }}
-                />
-                <div className="row__grow">
-                  <div className="type-label row__ellipsis">{ev.title}</div>
-                  {ev.start && (
-                    <div className="type-label-sm text-muted">{formatWhen(ev.start)}</div>
-                  )}
-                </div>
-                <ChevronRight
-                  size={18}
-                  strokeWidth={2}
-                  style={{ flex: '0 0 auto', color: 'var(--color-outline)' }}
-                />
-              </button>
-            ))}
-          </Card>
+        ) : pending.length > 0 ? (
+          <EventList events={pending} onPick={onPick} />
         ) : (
           <Card className="type-body text-muted">
-            No upcoming visitor events found. They appear here once an event includes
-            the visitor address.
+            No events need passes right now. Open a Calendar event and click
+            Register a visitor to send passes.
           </Card>
         )}
-      </section>
+      </Section>
+
+      {sent.length > 0 && (
+        <Section title="Passes sent">
+          <EventList events={sent} onPick={onPick} sent />
+        </Section>
+      )}
     </div>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section>
+      <div
+        className="type-label-sm text-muted"
+        style={{ textTransform: 'uppercase', marginBottom: 4 }}
+      >
+        {title}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function EventList({
+  events,
+  onPick,
+  sent,
+}: {
+  events: PanelVisitorEvent[];
+  onPick: (ev: PanelVisitorEvent) => void;
+  sent?: boolean;
+}) {
+  return (
+    <Card style={{ paddingTop: 0, paddingBottom: 0 }}>
+      {events.map((ev) => (
+        <button
+          key={ev.eid}
+          className="row"
+          onClick={() => onPick(ev)}
+          style={{
+            width: '100%',
+            background: 'transparent',
+            border: 'none',
+            font: 'inherit',
+            textAlign: 'left',
+            cursor: 'pointer',
+          }}
+        >
+          <CalendarClock
+            size={18}
+            strokeWidth={2}
+            style={{ flex: '0 0 auto', color: 'var(--color-on-surface-variant)' }}
+          />
+          <div className="row__grow">
+            <div className="type-label row__ellipsis">{ev.title}</div>
+            {ev.start && (
+              <div className="type-label-sm text-muted">{formatWhen(ev.start)}</div>
+            )}
+          </div>
+          {sent ? (
+            <span
+              className="type-label-sm"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                flex: '0 0 auto',
+                color: 'var(--color-success)',
+              }}
+            >
+              <CheckCircle2 size={15} strokeWidth={2} />
+              Sent
+            </span>
+          ) : (
+            <ChevronRight
+              size={18}
+              strokeWidth={2}
+              style={{ flex: '0 0 auto', color: 'var(--color-outline)' }}
+            />
+          )}
+        </button>
+      ))}
+    </Card>
   );
 }
 

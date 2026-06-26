@@ -26,6 +26,7 @@ export function PreviewSheet({
   preview,
   recipient,
   totalCount,
+  update = false,
   sending,
   onSend,
   onClose,
@@ -33,10 +34,16 @@ export function PreviewSheet({
   preview: PreviewResponse;
   recipient: string;
   totalCount: number;
+  /** Managed event: we're updating already issued passes, not sending new ones.
+   *  Switches the count wording from "sent" to "updated" so the host sees exactly
+   *  how many passes their change touches (editing one guest of five reads "1"). */
+  update?: boolean;
   sending: boolean;
   onSend: () => void;
   onClose: () => void;
 }) {
+  const verb = update ? 'updated' : 'sent';
+  const action = update ? 'Update' : 'Send';
   const scrollRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   // Width the email lays out at (clamped so we never shrink below the panel).
@@ -161,8 +168,8 @@ export function PreviewSheet({
           }}
         >
           <div className="type-label-sm text-muted" style={{ textAlign: 'center' }}>
-            Preview for {recipient} · {totalCount} pass{totalCount > 1 ? 'es' : ''} will be
-            sent
+            Preview for {recipient} · {totalCount} pass{totalCount > 1 ? 'es' : ''} will be{' '}
+            {verb}
           </div>
           <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
             <Button variant="text" onClick={onClose} disabled={sending} style={{ flex: 1 }}>
@@ -175,7 +182,11 @@ export function PreviewSheet({
               onClick={onSend}
               style={{ flex: 2 }}
             >
-              {sending ? 'Sending…' : `Send ${totalCount} pass${totalCount > 1 ? 'es' : ''}`}
+              {sending
+              ? update
+                ? 'Updating…'
+                : 'Sending…'
+              : `${action} ${totalCount} pass${totalCount > 1 ? 'es' : ''}`}
             </Button>
           </div>
         </footer>

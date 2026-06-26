@@ -9,6 +9,14 @@
 import { MAGIC_ADDRESS } from './config';
 import type { ActiveEvent } from './types';
 
+/** Forward window for the change-feed scan. `singleEvents=true` expands EVERY
+ *  recurring series into per-occurrence instances; with no bound a daily event
+ *  alone yields ~700 rows and a busy calendar returns 6000+ — a ~14s, 25-page
+ *  scan that the MV3 worker can be killed in the middle of (leaving the marked
+ *  set stale). Visitor nudges are near-term, so we cap the window: ~90 days cuts
+ *  that to a few hundred rows / ~2s. The periodic full re-scan slides it forward. */
+const FORWARD_WINDOW_MS = 90 * 24 * 60 * 60_000;
+
 /** `eid` is URL-safe base64 of "<eventId> <calendarId>" (calendarId optional). */
 export function decodeEid(eid: string): { eventId: string; calendarId: string } | null {
   try {
@@ -192,8 +200,14 @@ export async function listEvents(
     if (opts.syncToken) {
       url.searchParams.set('syncToken', opts.syncToken);
     } else {
-      // Initial sync: a forward window keeps the token small and relevant.
-      url.searchParams.set('timeMin', new Date().toISOString());
+      // Initial/full sync: a BOUNDED forward window keeps the token small and the
+      // scan fast. timeMin/timeMax can't be combined with a syncToken (Google
+      // rejects it), so we only set them here; the token then preserves this
+      // window for subsequent incremental syncs. A fresh full re-scan (12h timer)
+      // re-establishes it against the new `now`, sliding the window forward.
+      const now = Date.now();
+      url.searchParams.set('timeMin', new Date(now).toISOString());
+      url.searchParams.set('timeMax', new Date(now + FORWARD_WINDOW_MS).toISOString());
     }
     if (pageToken) url.searchParams.set('pageToken', pageToken);
 
