@@ -1,0 +1,18 @@
+build the extension
+
+---
+
+remove the input for 
+Where visitors check in in extension, I do not think so we need that. also no need to show this message, Following the event open in Calendar. also if no changes has happened in the invite or calendar event. we need to show appropriate message to the user. in extension, you can see the flow for this in the add on also. first tell me what things you will change.
+
+---
+
+did you build the extension?
+
+---
+
+no need to show such big message , small and clear message is enough. All passes are up to date — nothing to send. Add a guest, toggle someone, or edit a name to send an update. what would you write?
+
+---
+
+do not use dashes in any message or info we show anywhere in the auxilio-extension or add on: Up to date — no changes to send. use simple english statement, with simple grammar and punctuation marks.
