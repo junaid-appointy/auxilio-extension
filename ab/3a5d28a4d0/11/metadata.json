@@ -1,0 +1,443 @@
+{
+  "cli_version": "0.7.6",
+  "checkpoint_id": "ab3a5d28a4d0",
+  "session_id": "ea4a3992-c46b-4247-9776-fa25867f50c0",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-26T09:47:05.067372Z",
+  "branch": "main",
+  "checkpoints_count": 53,
+  "save_step_count": 40,
+  "files_touched": [
+    "entrypoints/background.ts",
+    "entrypoints/calendar.content.ts",
+    "features/visit/EmptyState.tsx",
+    "features/visit/PreviewSheet.tsx",
+    "features/visit/RosterRow.tsx",
+    "features/visit/VisitPanel.tsx",
+    "features/visit/hooks.ts",
+    "lib/calendar.ts",
+    "lib/engine.ts",
+    "lib/messaging.ts",
+    "lib/types.ts",
+    "wxt.config.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "",
+  "turn_id": "2c1dd2390c0d",
+  "token_usage": {
+    "input_tokens": 25108,
+    "cache_creation_tokens": 4121018,
+    "cache_read_tokens": 142834580,
+    "output_tokens": 617610,
+    "api_call_count": 452
+  },
+  "session_metrics": {
+    "turn_count": 53
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-26T09:47:04.970303Z",
+    "agent_lines": 1539,
+    "agent_removed": 223,
+    "human_added": 1491,
+    "human_modified": 347,
+    "human_removed": 0,
+    "total_committed": 3287,
+    "total_lines_changed": 3611,
+    "agent_percentage": 48.79534754915536,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 48,
+      "agent_lines_removed": 18
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 48,
+      "agent_lines_removed": 18
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 48,
+      "agent_lines_removed": 18
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 48,
+      "agent_lines_removed": 18
+    },
+    {
+      "checkpoint_number": 6,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 7,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 9,
+      "agent_lines_removed": 6
+    },
+    {
+      "checkpoint_number": 8,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 37,
+      "agent_lines_removed": 18
+    },
+    {
+      "checkpoint_number": 9,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 37,
+      "agent_lines_removed": 18
+    },
+    {
+      "checkpoint_number": 10,
+      "user_lines_added": 50,
+      "user_lines_removed": 59,
+      "agent_lines_added": 101,
+      "agent_lines_removed": 44,
+      "user_added_per_file": {
+        "entrypoints/options/Options.tsx": 1,
+        "features/visit/VisitPanel.tsx": 31,
+        "public/icon/Auxilio-vector-logo.svg": 18
+      },
+      "user_removed_per_file": {
+        "entrypoints/options/Options.tsx": 1,
+        "features/visit/VisitPanel.tsx": 58
+      }
+    },
+    {
+      "checkpoint_number": 11,
+      "user_lines_added": 18,
+      "user_lines_removed": 0,
+      "agent_lines_added": 73,
+      "agent_lines_removed": 50,
+      "user_added_per_file": {
+        "public/icon/Auxilio-vector-logo.svg": 18
+      }
+    },
+    {
+      "checkpoint_number": 12,
+      "user_lines_added": 18,
+      "user_lines_removed": 0,
+      "agent_lines_added": 70,
+      "agent_lines_removed": 52,
+      "user_added_per_file": {
+        "public/icon/Auxilio-vector-logo.svg": 18
+      }
+    },
+    {
+      "checkpoint_number": 13,
+      "user_lines_added": 18,
+      "user_lines_removed": 0,
+      "agent_lines_added": 79,
+      "agent_lines_removed": 53,
+      "user_added_per_file": {
+        "public/icon/Auxilio-vector-logo.svg": 18
+      }
+    },
+    {
+      "checkpoint_number": 14,
+      "user_lines_added": 18,
+      "user_lines_removed": 0,
+      "agent_lines_added": 178,
+      "agent_lines_removed": 65,
+      "user_added_per_file": {
+        "public/icon/Auxilio-vector-logo.svg": 18
+      }
+    },
+    {
+      "checkpoint_number": 15,
+      "user_lines_added": 18,
+      "user_lines_removed": 0,
+      "agent_lines_added": 178,
+      "agent_lines_removed": 65,
+      "user_added_per_file": {
+        "public/icon/Auxilio-vector-logo.svg": 18
+      }
+    },
+    {
+      "checkpoint_number": 16,
+      "user_lines_added": 18,
+      "user_lines_removed": 0,
+      "agent_lines_added": 180,
+      "agent_lines_removed": 65,
+      "user_added_per_file": {
+        "public/icon/Auxilio-vector-logo.svg": 18
+      }
+    },
+    {
+      "checkpoint_number": 17,
+      "user_lines_added": 18,
+      "user_lines_removed": 0,
+      "agent_lines_added": 240,
+      "agent_lines_removed": 99,
+      "user_added_per_file": {
+        "public/icon/Auxilio-vector-logo.svg": 18
+      }
+    },
+    {
+      "checkpoint_number": 18,
+      "user_lines_added": 18,
+      "user_lines_removed": 0,
+      "agent_lines_added": 240,
+      "agent_lines_removed": 99,
+      "user_added_per_file": {
+        "public/icon/Auxilio-vector-logo.svg": 18
+      }
+    },
+    {
+      "checkpoint_number": 19,
+      "user_lines_added": 203,
+      "user_lines_removed": 78,
+      "agent_lines_added": 375,
+      "agent_lines_removed": 119,
+      "user_added_per_file": {
+        "entrypoints/background.ts": 23,
+        "entrypoints/calendar.content.ts": 25,
+        "entrypoints/sidepanel/main.tsx": 5,
+        "features/visit/PreviewSheet.tsx": 48,
+        "features/visit/RosterRow.tsx": 2,
+        "features/visit/VisitPanel.tsx": 75,
+        "lib/messaging.ts": 7,
+        "public/icon/Auxilio-vector-logo.svg": 18
+      },
+      "user_removed_per_file": {
+        "entrypoints/calendar.content.ts": 9,
+        "features/visit/PreviewSheet.tsx": 10,
+        "features/visit/RosterRow.tsx": 29,
+        "features/visit/VisitPanel.tsx": 30
+      }
+    },
+    {
+      "checkpoint_number": 20,
+      "user_lines_added": 18,
+      "user_lines_removed": 0,
+      "agent_lines_added": 539,
+      "agent_lines_removed": 176,
+      "user_added_per_file": {
+        "public/icon/Auxilio-vector-logo.svg": 18
+      }
+    },
+    {
+      "checkpoint_number": 21,
+      "user_lines_added": 18,
+      "user_lines_removed": 0,
+      "agent_lines_added": 564,
+      "agent_lines_removed": 178,
+      "user_added_per_file": {
+        "public/icon/Auxilio-vector-logo.svg": 18
+      }
+    },
+    {
+      "checkpoint_number": 22,
+      "user_lines_added": 18,
+      "user_lines_removed": 0,
+      "agent_lines_added": 564,
+      "agent_lines_removed": 178,
+      "user_added_per_file": {
+        "public/icon/Auxilio-vector-logo.svg": 18
+      }
+    },
+    {
+      "checkpoint_number": 23,
+      "user_lines_added": 18,
+      "user_lines_removed": 0,
+      "agent_lines_added": 715,
+      "agent_lines_removed": 199,
+      "user_added_per_file": {
+        "public/icon/Auxilio-vector-logo.svg": 18
+      }
+    },
+    {
+      "checkpoint_number": 24,
+      "user_lines_added": 18,
+      "user_lines_removed": 0,
+      "agent_lines_added": 715,
+      "agent_lines_removed": 199,
+      "user_added_per_file": {
+        "public/icon/Auxilio-vector-logo.svg": 18
+      }
+    },
+    {
+      "checkpoint_number": 25,
+      "user_lines_added": 18,
+      "user_lines_removed": 0,
+      "agent_lines_added": 766,
+      "agent_lines_removed": 200,
+      "user_added_per_file": {
+        "public/icon/Auxilio-vector-logo.svg": 18
+      }
+    },
+    {
+      "checkpoint_number": 26,
+      "user_lines_added": 18,
+      "user_lines_removed": 0,
+      "agent_lines_added": 766,
+      "agent_lines_removed": 200,
+      "user_added_per_file": {
+        "public/icon/Auxilio-vector-logo.svg": 18
+      }
+    },
+    {
+      "checkpoint_number": 27,
+      "user_lines_added": 18,
+      "user_lines_removed": 0,
+      "agent_lines_added": 766,
+      "agent_lines_removed": 200,
+      "user_added_per_file": {
+        "public/icon/Auxilio-vector-logo.svg": 18
+      }
+    },
+    {
+      "checkpoint_number": 28,
+      "user_lines_added": 18,
+      "user_lines_removed": 0,
+      "agent_lines_added": 929,
+      "agent_lines_removed": 200,
+      "user_added_per_file": {
+        "public/icon/Auxilio-vector-logo.svg": 18
+      }
+    },
+    {
+      "checkpoint_number": 29,
+      "user_lines_added": 18,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1004,
+      "agent_lines_removed": 200,
+      "user_added_per_file": {
+        "public/icon/Auxilio-vector-logo.svg": 18
+      }
+    },
+    {
+      "checkpoint_number": 30,
+      "user_lines_added": 18,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1006,
+      "agent_lines_removed": 200,
+      "user_added_per_file": {
+        "public/icon/Auxilio-vector-logo.svg": 18
+      }
+    },
+    {
+      "checkpoint_number": 31,
+      "user_lines_added": 18,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1020,
+      "agent_lines_removed": 200,
+      "user_added_per_file": {
+        "public/icon/Auxilio-vector-logo.svg": 18
+      }
+    },
+    {
+      "checkpoint_number": 32,
+      "user_lines_added": 18,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1023,
+      "agent_lines_removed": 200,
+      "user_added_per_file": {
+        "public/icon/Auxilio-vector-logo.svg": 18
+      }
+    },
+    {
+      "checkpoint_number": 33,
+      "user_lines_added": 18,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1026,
+      "agent_lines_removed": 200,
+      "user_added_per_file": {
+        "public/icon/Auxilio-vector-logo.svg": 18
+      }
+    },
+    {
+      "checkpoint_number": 34,
+      "user_lines_added": 18,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1026,
+      "agent_lines_removed": 200,
+      "user_added_per_file": {
+        "public/icon/Auxilio-vector-logo.svg": 18
+      }
+    },
+    {
+      "checkpoint_number": 35,
+      "user_lines_added": 18,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1026,
+      "agent_lines_removed": 200,
+      "user_added_per_file": {
+        "public/icon/Auxilio-vector-logo.svg": 18
+      }
+    },
+    {
+      "checkpoint_number": 36,
+      "user_lines_added": 18,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1096,
+      "agent_lines_removed": 200,
+      "user_added_per_file": {
+        "public/icon/Auxilio-vector-logo.svg": 18
+      }
+    },
+    {
+      "checkpoint_number": 37,
+      "user_lines_added": 18,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1101,
+      "agent_lines_removed": 200,
+      "user_added_per_file": {
+        "public/icon/Auxilio-vector-logo.svg": 18
+      }
+    },
+    {
+      "checkpoint_number": 38,
+      "user_lines_added": 18,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1101,
+      "agent_lines_removed": 200,
+      "user_added_per_file": {
+        "public/icon/Auxilio-vector-logo.svg": 18
+      }
+    },
+    {
+      "checkpoint_number": 39,
+      "user_lines_added": 18,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1101,
+      "agent_lines_removed": 200,
+      "user_added_per_file": {
+        "public/icon/Auxilio-vector-logo.svg": 18
+      }
+    },
+    {
+      "checkpoint_number": 40,
+      "user_lines_added": 18,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1101,
+      "agent_lines_removed": 200,
+      "user_added_per_file": {
+        "public/icon/Auxilio-vector-logo.svg": 18
+      }
+    }
+  ]
+}

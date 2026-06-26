@@ -1,0 +1,328 @@
+do phase 3
+
+---
+
+what are the things I need for setup?
+
+---
+
+I would be using the same auxilio workspace project on google cloud for the extension also. just add Create OAuth client ID, would there be any issue?
+
+---
+
+no for extension we will use new env var. also should I create new client as chrome extension application type or web app?
+
+---
+
+do I need to add authorized URI adn redirect urls in the client?
+
+---
+
+Failed to load extension
+File
+~/work/OfficeOperationsUmbrella/auxilio-extension
+Error
+Manifest file is missing or unreadable
+Could not load manifest.
+
+---
+
+cannot see .output folder in folder selector
+
+---
+
+okay added.
+
+---
+
+which env to add in engine
+
+---
+
+all this just to auto detect event is open when a user is not oauth logged in, when we will have oauth, we won't need this way of detection, right?
+
+---
+
+how did the add-on able to fetch and sync with the open event, like when the event was open and I did any change, the add on was able to refresh and show me stuff.
+
+---
+
+we can also ask for same permissions from the user to read the calendar events.
+
+---
+
+tell me if we can do this without the dom: reflect changes happening in the calendar event in realtime in the extension, auto open the extenstion or show notification when the calendar event is saved. auto open when a linked calendar event with invite is opeened. or just show notification or option to open.
+
+---
+
+how did the add on auto detect and update the changes in open event in realtime
+
+---
+
+Access blocked: Authorization Error
+
+junaid@appointy.com
+The OAuth client was not found.
+If you are a developer of this app, see error details.
+Error 401: invalid_client
+
+---
+
+added the correct client id, still the same error.
+
+---
+
+Error 401: invalid_client
+Request details: flowName=GeneralOAuthFlow
+Access blocked: Authorization Error
+
+junaid@appointy.com
+The OAuth client was not found.
+If you are a developer of this app, see error details.
+Error 401: invalid_client
+
+---
+
+https://accounts.google.com/signin/oauth/error?REDACTED&flowName=GeneralOAuthFlow&REDACTED&aes=AbzcAbFm8cbVn8oGDufFisJZercW
+
+---
+
+okay the oauth worked, but the register a visitor injected button is not opening the extension side panel. also it is not syncing with the changes in the new event, not even when I am opening an already saved event.
+
+---
+
+I feel the extension is not communicating with our backend. This event was not found on your calendar. Try again
+
+---
+
+how is the extension fetching the calendar event of signed in user, directly or through our engine?
+
+---
+
+Auxilio Visitor
+
+This event was not found on your calendar.
+
+---
+
+in the extension use logo in svg format : Auxilio-vector-logo.svg, present in the public folder
+
+---
+
+continue
+
+---
+
+did not see the logo.
+
+---
+
+inside the extension the logo is there, but the icon of the extension is still that default puzzle piece not the our logo.
+
+---
+
+on an unsaved event the extension says : Auxilio Visitor
+
+Event not found via Calendar API (cal=junaid@appointy.com, id=1m8h0g0fnjqqgfgfg26cbjd8no).
+
+and in an already saved event, the extension starts loading info of the event when I press the register a visitor button, and that also only fethches the title of the event, and other things stay stuck on loading
+
+---
+
+why the icon of the extension has white background?
+
+---
+
+is the extension talking to backend via the tunnel?
+
+---
+
+is the extension talking to backend via the tunnel, because I am getting : Engine error 404: Not found
+
+---
+
+error in the engine terminal : 
+14:43:17.559  [HTTP<-]  [401]  POST    /api/visitor/calendar/addon/draft      2ms  | req=b0570b
+14:43:20.207  [HTTP->]  POST    /api/visitor/calendar/addon/draft  | ip=49.249.138.170 req=5b6d0c
+[AddonAuth] id-token verification failed: warn: Wrong recipient, payload audience != requiredAudience
+      at verifySignedJwtWithCertsAsync (/Users/appointy/work/OfficeOperationsUmbrella/office-ops-engine/node_modules/google-auth-library/build/src/auth/oauth2client.js:750:27)
+
+14:43:20.209  [HTTP<-]  [401]  POST    /api/visitor/calendar/addon/draft      2ms  | req=5b6d0c
+14:43:21.677  [HTTP->]  POST    /api/visitor/calendar/addon/draft  | ip=49.249.138.170 req=068915
+[AddonAuth] id-token verification failed: warn: Wrong recipient, payload audience != requiredAudience
+      at verifySignedJwtWithCertsAsync (/Users/appointy/work/OfficeOperationsUmbrella/office-ops-engine/node_modules/google-auth-library/build/src/auth/oauth2client.js:750:27)
+
+14:43:21.678  [HTTP<-]  [401]  POST    /api/visitor/calendar/addon/draft      1ms  | req=068915
+14:43:28.639  [HTTP->]  POST    /api/visitor/calendar/addon/draft  | ip=49.249.138.170 req=1dd22f
+[AddonAuth] id-token verification failed: warn: Wrong recipient, payload audience != requiredAudience
+      at verifySignedJwtWithCertsAsync (/Users/appointy/work/OfficeOperationsUmbrella/office-ops-engine/node_modules/google-auth-library/build/src/auth/oauth2client.js:750:27)
+
+14:43:28.644  [HTTP<-]  [401]  POST    /api/visitor/calendar/addon/draft      6ms  | req=1dd22f
+14:43:30.139  [HTTP->]  POST    /api/visitor/calendar/addon/draft  | ip=49.249.138.170 req=743351
+[AddonAuth] id-token verification failed: warn: Wrong recipient, payload audience != requiredAudience
+      at verifySignedJwtWithCertsAsync (/Users/appointy/work/OfficeOperationsUmbrella/office-ops-engine/node_modules/google-auth-library/build/src/auth/oauth2client.js:750:27)
+
+14:43:30.141  [HTTP<-]  [401]  POST    /api/visitor/calendar/addon/draft      2ms  | req=743351
+14:43:30.958  [HTTP->]  POST    /api/visitor/calendar/addon/draft  | ip=49.249.138.170 req=caf3a0
+[AddonAuth] id-token verification failed: warn: Wrong recipient, payload audience != requiredAudience
+      at verifySignedJwtWithCertsAsync (/Users/appointy/work/OfficeOperationsUmbrella/office-ops-engine/node_modules/google-auth-library/build/src/auth/oauth2client.js:750:27)
+
+14:43:30.959  [HTTP<-]  [401]  POST    /api/visitor/calendar/addon/draft      1ms  | req=caf3a0
+14:43:32.423  [HTTP->]  POST    /api/visitor/calendar/addon/draft  | ip=49.249.138.170 req=f2988b
+[AddonAuth] id-token verification failed: warn: Wrong recipient, payload audience != requiredAudience
+      at verifySignedJwtWithCertsAsync (/Users/appointy/work/OfficeOperationsUmbrella/office-ops-engine/node_modules/google-auth-library/build/src/auth/oauth2client.js:750:27)
+
+14:43:32.425  [HTTP<-]  [401]  POST    /api/visitor/calendar/addon/draft      2ms  | req=f2988b
+ and on the extension, it just loads the event name and loads skeleton and then tells me to sign in again.
+
+---
+
+lets rename the register visitor into Manage Visitors, and that only when WXT_MAGIC_ADDRESS is present in the guest list. can we not take any data in realtime from the calendar? the event name, the guests, the time, the location, the rooms, the description? answer me first
+
+---
+
+I want both, the dom scan and api based read, our system should be able to switch as per the scenario, or use both if required to provide seamless and reliable experience.
+
+---
+
+one fix, the manage visitor button should disappaer when the extension is open. sometimes the mangame visitor button does not show up when I am creating a new event. also the email template selector will be one for an event, not in each guest card. also since this is our extension we can show email preview and give button below it to cancel or send. also make sure the preview is the actual email templates we have on the ops dashboard, not our own made up.
+
+---
+
+one fix, the manage visitor button should disappaer when the extension is open. sometimes the mangame visitor button does not show up when I am creating a new event. also the email template selector will be one for an event, not in each guest card. also since this is our extension we can show email preview and give button below it to cancel or send. also make sure the preview is the actual email templates we have on the ops dashboard, not our own made up. suggest me if you have better idea
+
+---
+
+continue
+
+---
+
+❯ also when I click on the manage visitor button, while the calendar event modal is open, the calendar modal closes, that should not happen. can we do something about that?
+
+---
+
+I was thinking of some flows to make the visitor process seamless, what if we scrape the unsaved event compeletely, I think the last time we checked that the temporary id that google gives to unsaved events, become their permananent if saved. so we scrape everything, give user option to edit and configure everything, but instead of send passes, we will give them option to save schedule invites, so after they save it, from calendar api, we will get the id of the event and we will process invites as per their saved configs, on the extension we will also inform that the invites will be sent after they save the event. 
+Now second thing, lets not do the check of magic address, we will show the manage visitors with Auxilio button like a native calendar modal or edit page button, at the bottom of the modal or the page. this will tell the intention of the user that they want to use the visitor management on that event. 
+another thing is that at the home page when no event is open, we show the list of event, if I click one, I see the screen to config the invites, but no back button to home screen. first analyse all this, suggest me if you have better ideas.
+
+---
+
+I was thinking of some flows to make the visitor process seamless, what if we scrape the unsaved event compeletely, I think the last time we checked that the temporary id that google gives to unsaved events, become their permananent if saved. so we scrape everything, give user option to edit and configure everything, but instead of send passes, we will give them option to save schedule invites, so after they save it, from calendar api, we will get the id of the event and we will process invites as per their saved configs, on the extension we will also inform that the invites will be sent after they save the event. 
+Now second thing, lets not do the check of magic address, we will show the manage visitors with Auxilio button like a native calendar modal or edit page button, at the bottom of the modal or the page. this will tell the intention of the user that they want to use the visitor management on that event. 
+another thing is that at the home page when no event is open, we show the list of event, if I click one, I see the screen to config the invites, but no back button to home screen. first analyse all this, suggest me if you have better ideas. also suppose user uses magic address and saves the event, but not presses on the manage visitor button, but since we are getting that data through calendar api, we can show a little nudge to the user to send invites for this event with a button to open visitor management, and on click of that we will open that calendar event modal and our extension both at the same tab, not new tab. tell me what flows are possible and how much is possible, do suggest if you have better flows.
+
+---
+
+first add all this to a document if we are maintaining for the extension related ideas.
+
+---
+
+suppose the extension is open, and I open a already saved event, can it not load the visitor details of that event if we have it in our system? or just show usual invite config screen?
+
+---
+
+okay, I accept your recommendation.   My recommendation
+
+  Make the panel auto-follow the open event, with two guards so it's not disruptive:
+  1. Don't switch mid-action — if you're actively sending or have a preview open, hold the current event until that's done.
+  2. Edits are safe — guest name/phone/template persist on blur (we already PATCH), so following to another event never loses work. implement this flow.
+
+---
+
+tell me how the nudge flow will work?
+
+---
+
+that flow, that we save and event and get a nudge with button that will open both our extension panel and that event modal?
+
+---
+
+yes, we do not want OS notification, why was the OS notification built by the way? tell me first
+
+---
+
+yes , build that in-page nudge banner, also tell me why was that OS notification flow was created, where it is used.
+
+---
+
+well, first of all the notification is so slow, the user may exit the calendar, what if they exit quickly before the notification arrived and they come back, will the notification show up, also clicking on maange does not open the side panel quickly, it takes a lot of time, and does not open the exact event, it just open the side panel of the extension. how can we fix this?
+
+---
+
+closing the notification of the nudge, does not closes
+
+---
+
+closing the notification of the nudge, does not closes, is there any memory leak or background process issue?
+
+---
+
+lets do one thing, instead of trying to open the calendar event modal on manage button click, lets open the edit screen of that event.
+
+---
+
+no the edit screeen is not opening, same old behaviour, the extension tries to open modal , refreshes page, nothing happens.
+
+---
+
+continue
+
+---
+
+this is the edit event link I see: https://calendar.google.com/calendar/u/0/r/eventedit/REDACTED
+
+---
+
+the notification for manage passes we are sending, is this the flow, that when we save an event, the backend gets its details via calendar api and then prompts the extension with calendar event info to trigger notifcation?
+
+---
+
+so, if we move things to engine, it will be a lot faster, so user won't have to wait like 10-15 secs for the manage visitor nudge to come?
+
+---
+
+yes implement the client side instant nudge
+
+---
+
+okay the nudge is instant, I click on the manage button, the side panel and the edit event page open, but when I close the side panel, the same nudge comes back at the screen again
+
+---
+
+Can we add a reverse linking, like after passes are sent, we send the user an email with a link, and on click of that link, they will be sent back to chrome where the extension side panel will open and their calendar edit of that event will also open and they can edit, or should we redirect to dashboard? just tell me answers
+
+---
+
+download] 100% of    1.93MiB in 00:00:00 at 3.13MiB/s
+[Metadata] Adding metadata to "./do_i_clench_my_fists [dzAQkrOF9Xg].mp4"
+ERROR: ffmpeg not found. Please install or provide the path using --ffmpeg-location
+[ThumbnailsConvertor] Converting thumbnail "./do_i_clench_my_fists [dzAQkrOF9Xg].webp" to png
+ERROR: ffmpeg not found. Please install or provide the path using --ffmpeg-location
+
+
+
+
+Continue? [Y/n] y
+Setting up ffmpeg (8.1.2) ...
+CANNOT LINK EXECUTABLE "/data/data/com.termux/files/usr/bin/ffmpeg": cannot locate symbol "REDACTED" referenced by "/data/data/com.termux/files/usr/lib/libplacebo.so"...
+Failed to run the 'ffmpeg' command.
+To fix the 'ffmpeg' command, manually upgrade all packages by running: `pkg upgrade`
+If upgrading packages does not fix it, then please open an issue at https://github.com/termux/termux-packages/issues
+See also: https://github.com/termux/termux-packages/wiki/Termux-execution-environment#dynamic-library-linking-errors
+dpkg: error processing package ffmpeg (--configure):
+ installed ffmpeg package post-installation script subprocess returned error exit status 1
+Errors were encountered while processing:
+ ffmpeg
+Error: Sub-process /data/data/com.termux/files/usr/bin/dpkg returned an error code (1)
+
+---
+
+[ThumbnailsConvertor] Converting thumbnail "./do_i_clench_my_fists [dzAQkrOF9Xg].webp" to png
+ERROR: module mutagen was not found. Please install using `python3 -m pip install mutagen`
+~ $ python3 -m pip install mutagen 
+
+also the file saved by the tool is not being by found by music player app
+
+---
+
+so can we not make some changes in our code, so that issues like these do not appear for users?
