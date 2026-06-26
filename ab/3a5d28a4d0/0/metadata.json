@@ -1,0 +1,70 @@
+{
+  "cli_version": "0.7.6",
+  "checkpoint_id": "ab3a5d28a4d0",
+  "session_id": "02ede2b6-9758-4405-a544-967d56f22f2d",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-26T09:46:59.612453Z",
+  "branch": "main",
+  "checkpoints_count": 2,
+  "save_step_count": 2,
+  "files_touched": [
+    "design/global.css",
+    "entrypoints/background.ts",
+    "entrypoints/calendar.content.ts",
+    "features/visit/EmptyState.tsx",
+    "features/visit/PreviewSheet.tsx",
+    "features/visit/RosterRow.tsx",
+    "features/visit/VisitPanel.tsx",
+    "features/visit/hooks.ts",
+    "lib/auth.ts",
+    "lib/calendar-sync.ts",
+    "lib/calendar.ts",
+    "lib/engine.ts",
+    "lib/messaging.ts",
+    "lib/people.ts",
+    "lib/types.ts",
+    "package.json",
+    "wxt.config.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "",
+  "turn_id": "b4cf7734cc1e",
+  "token_usage": {
+    "input_tokens": 14129,
+    "cache_creation_tokens": 189243,
+    "cache_read_tokens": 7954752,
+    "output_tokens": 88086,
+    "api_call_count": 69
+  },
+  "session_metrics": {
+    "turn_count": 2
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-26T09:46:59.590738Z",
+    "agent_lines": 1090,
+    "agent_removed": 167,
+    "human_added": 187,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 1277,
+    "total_lines_changed": 1444,
+    "agent_percentage": 87.04986149584487,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1247,
+      "agent_lines_removed": 162
+    }
+  ]
+}

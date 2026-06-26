@@ -1,0 +1,41 @@
+{
+  "cli_version": "0.7.6",
+  "checkpoint_id": "ab3a5d28a4d0",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "design/global.css",
+    "entrypoints/background.ts",
+    "entrypoints/calendar.content.ts",
+    "features/visit/EmptyState.tsx",
+    "features/visit/PreviewSheet.tsx",
+    "features/visit/RosterRow.tsx",
+    "features/visit/VisitPanel.tsx",
+    "features/visit/hooks.ts",
+    "lib/auth.ts",
+    "lib/calendar-sync.ts",
+    "lib/calendar.ts",
+    "lib/engine.ts",
+    "lib/messaging.ts",
+    "lib/people.ts",
+    "lib/types.ts",
+    "package.json",
+    "wxt.config.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ab/3a5d28a4d0/0/metadata.json",
+      "transcript": "/ab/3a5d28a4d0/0/full.jsonl",
+      "content_hash": "/ab/3a5d28a4d0/0/content_hash.txt",
+      "prompt": "/ab/3a5d28a4d0/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 14129,
+    "cache_creation_tokens": 189243,
+    "cache_read_tokens": 7954752,
+    "output_tokens": 88086,
+    "api_call_count": 69
+  }
+}

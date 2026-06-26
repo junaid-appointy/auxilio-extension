@@ -1,0 +1,1 @@
+also, when I update passes, it should tell me the exact number of passes updated, not like if I edit one guest detail and there are 5 guest in the invite, it should just say one pass updated, not 5 passes updated.
