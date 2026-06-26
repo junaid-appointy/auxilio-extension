@@ -1,0 +1,22 @@
+names already come from calendar? do they? becuase I added a guest, whose email was j7654894110@gmail.com , on the guest list it changed to Junaid Ahmad, but on our extension the name was set as j7654894110.
+
+---
+
+extension built?
+
+---
+
+the manage visitor button is there, in the unsaved and newly opened event, but is not perfectly aligned with other buttons, it is sitting slightly above, like it has extra padding at the bottom.
+
+---
+
+in the auxilio-extension, guest list section, the name resolves, but only in the place where name and email is shown, in the input box : Visitor name, it is stil scraping the portion of the email. also in the phone input, do not write : (for WhatsApp pass). there is a weird bug, in the side panel, when an event is created, we do not see the magic address email as the guest, but when we toggle on any internal person, that person and suddenly the magic address, show up in the guest list. analyse this and tell me how we will solve these, what is the issue, then we will implement one by one the solution.
+
+---
+
+would it be hard or compute intensive to add that as well?   One honest caveat: this fully fixes the toggle case you hit. A name/phone edit that you type and then manually revert to the exact original still keeps the button active —
+  catching that needs a real value-diff against the original draft, which I didn't add since you asked about the toggle. Say the word if you want that too.
+
+---
+
+yes, implement the fix and improvement, we will do it for template, name and phone. use the safe version which does not surprise user and still works reliably.
