@@ -1,0 +1,259 @@
+{
+  "cli_version": "0.7.6",
+  "checkpoint_id": "ab3a5d28a4d0",
+  "session_id": "30625a74-a743-46c0-941a-4ace0001f87f",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-26T09:47:00.700376Z",
+  "branch": "main",
+  "checkpoints_count": 23,
+  "save_step_count": 23,
+  "files_touched": [
+    "design/global.css",
+    "entrypoints/background.ts",
+    "entrypoints/calendar.content.ts",
+    "features/visit/EmptyState.tsx",
+    "features/visit/PreviewSheet.tsx",
+    "features/visit/RosterRow.tsx",
+    "features/visit/VisitPanel.tsx",
+    "features/visit/hooks.ts",
+    "lib/calendar-sync.ts",
+    "lib/calendar.ts",
+    "lib/engine.ts",
+    "lib/messaging.ts",
+    "lib/types.ts",
+    "wxt.config.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "",
+  "turn_id": "65c6b7811bfb",
+  "token_usage": {
+    "input_tokens": 8966,
+    "cache_creation_tokens": 587337,
+    "cache_read_tokens": 39258151,
+    "output_tokens": 258115,
+    "api_call_count": 199
+  },
+  "session_metrics": {
+    "turn_count": 23
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-26T09:47:00.653013Z",
+    "agent_lines": 259,
+    "agent_removed": 7,
+    "human_added": 1393,
+    "human_modified": 460,
+    "human_removed": 0,
+    "total_committed": 1936,
+    "total_lines_changed": 2124,
+    "agent_percentage": 12.523540489642185,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 1232,
+      "user_lines_removed": 242,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "design/components/Logo.tsx": 6,
+        "design/components/Switch.tsx": 8,
+        "design/components/TextField.tsx": 20,
+        "design/components/index.ts": 1,
+        "design/global.css": 22,
+        "entrypoints/background.ts": 115,
+        "entrypoints/calendar.content.ts": 521,
+        "entrypoints/options/Options.tsx": 3,
+        "entrypoints/sidepanel/main.tsx": 5,
+        "features/visit/EmptyState.tsx": 3,
+        "features/visit/PreviewSheet.tsx": 48,
+        "features/visit/RosterRow.tsx": 65,
+        "features/visit/VisitPanel.tsx": 215,
+        "features/visit/hooks.ts": 23,
+        "lib/calendar.ts": 63,
+        "lib/engine.ts": 39,
+        "lib/messaging.ts": 29,
+        "lib/types.ts": 17,
+        "public/icon/Auxilio-vector-logo.svg": 18,
+        "wxt.config.ts": 11
+      },
+      "user_removed_per_file": {
+        "design/components/Switch.tsx": 2,
+        "design/components/TextField.tsx": 6,
+        "entrypoints/background.ts": 9,
+        "entrypoints/calendar.content.ts": 53,
+        "entrypoints/options/Options.tsx": 16,
+        "features/visit/EmptyState.tsx": 3,
+        "features/visit/PreviewSheet.tsx": 10,
+        "features/visit/RosterRow.tsx": 63,
+        "features/visit/VisitPanel.tsx": 50,
+        "features/visit/hooks.ts": 1,
+        "lib/calendar.ts": 15,
+        "lib/engine.ts": 9,
+        "lib/messaging.ts": 3,
+        "lib/types.ts": 1,
+        "wxt.config.ts": 1
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1290,
+      "agent_lines_removed": 242
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1301,
+      "agent_lines_removed": 242
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1301,
+      "agent_lines_removed": 242
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1342,
+      "agent_lines_removed": 244
+    },
+    {
+      "checkpoint_number": 6,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1406,
+      "agent_lines_removed": 244
+    },
+    {
+      "checkpoint_number": 7,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1472,
+      "agent_lines_removed": 244
+    },
+    {
+      "checkpoint_number": 8,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1505,
+      "agent_lines_removed": 244
+    },
+    {
+      "checkpoint_number": 9,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1518,
+      "agent_lines_removed": 244
+    },
+    {
+      "checkpoint_number": 10,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1522,
+      "agent_lines_removed": 244
+    },
+    {
+      "checkpoint_number": 11,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1558,
+      "agent_lines_removed": 244
+    },
+    {
+      "checkpoint_number": 12,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1568,
+      "agent_lines_removed": 244
+    },
+    {
+      "checkpoint_number": 13,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1596,
+      "agent_lines_removed": 244
+    },
+    {
+      "checkpoint_number": 14,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1615,
+      "agent_lines_removed": 244
+    },
+    {
+      "checkpoint_number": 15,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1622,
+      "agent_lines_removed": 244
+    },
+    {
+      "checkpoint_number": 16,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1661,
+      "agent_lines_removed": 245
+    },
+    {
+      "checkpoint_number": 17,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1664,
+      "agent_lines_removed": 245
+    },
+    {
+      "checkpoint_number": 18,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1664,
+      "agent_lines_removed": 245
+    },
+    {
+      "checkpoint_number": 19,
+      "user_lines_added": 15,
+      "user_lines_removed": 2,
+      "agent_lines_added": 1667,
+      "agent_lines_removed": 245,
+      "user_added_per_file": {
+        "entrypoints/calendar.content.ts": 15
+      },
+      "user_removed_per_file": {
+        "entrypoints/calendar.content.ts": 2
+      }
+    },
+    {
+      "checkpoint_number": 20,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1683,
+      "agent_lines_removed": 245
+    },
+    {
+      "checkpoint_number": 21,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1681,
+      "agent_lines_removed": 245
+    },
+    {
+      "checkpoint_number": 22,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1687,
+      "agent_lines_removed": 245
+    },
+    {
+      "checkpoint_number": 23,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1690,
+      "agent_lines_removed": 245
+    }
+  ]
+}

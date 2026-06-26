@@ -1,0 +1,118 @@
+continue
+
+---
+
+did google change the url: The actual url of edit page of an event: https://calendar.google.com/calendar/u/0/r/eventedit/REDACTED
+what we are hitting when we press manage from the prompt of extension: 
+https://calendar.google.com/calendar/u/0/r/eventedit/REDACTED
+
+---
+
+still the same issue, I pressed on manage, and this came up in URL : https://calendar.google.com/calendar/u/0/r/eventedit/REDACTED, 
+500. That’s an error.
+
+There was an error. Please try again later. That’s all we know.
+
+If the problem persists, see the Google Workspace Status Dashboard or visit the Help Center.
+
+---
+
+I deleted an event which was linked to the visitor system via magic address, and when I deleted that, I got this prompt : Visior event needs passes and it opened the invite section in the extensions side panel for the same event I deleted. this is an issue. we need to fix this.
+
+---
+
+the manage visitors button should always be on the modal or the edit event page, not outside. keep a fallback to outside if there is no place, but for now in the modal we can show it just below the event organiser name text,at the bottom, and in the event edit page, we will keep it just above the description section in the event details tab. can we do that?
+
+---
+
+our way of injection is wrong, in the modal, lets make the button the last thing in the content list, in the edit page, lets put our button in between element like the description section and the visibility section. our buttons should look like native calendar buttons and they should be placed like they are part of the UI and not like overlapping other elements.
+
+---
+
+the button should be at the bottom, after all the elements of the content in the modal, and in the edit screen, the button is at the right of the info text of availibity section, it should be its own row below that.
+
+---
+
+in the modal, the button has gone below the Going? section with yes no maybe, we should keep our button just above it.
+
+---
+
+in the modal, the button has gone below the Going? section with yes no maybe, we should keep our button just above it. and in the edit page, I do not see the button at all.
+
+---
+
+okay in the add on the button is at the right place, just its alignement and spacing is not aligned with the other element in the calendar event page. in the modal, the button is an overlapping, I want it to be a part of the other elements in the calendar, for example if I scroll the modal content, the buttons should also scroll, for that it needs to be a part of the other UI element not like an overlapping or overlay.
+
+---
+
+in the modal, the button is still above two elements at the end: 
+<div class="nBzcnc OcVpRe"><div aria-hidden="true" class="zZj8Pb EaVNbc"><span class="notranslate I5w14e" aria-hidden="true"><svg focusable="false" width="20" height="20" viewBox="0 0 24 24" class=" NMm5M"><path d="M18 17v-6c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v6H4v2h16v-2h-2zm-2 0H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6zm-4 5c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2z"></path></svg></span></div><div class="toUqff " id="xDetDlgNot"><ol class="oIOto" aria-label="Notifications"><li>10 minutes before</li></ol></div></div>
+
+<div class="nBzcnc OcVpRe" data-hovercard-id="junaid@appointy.com" data-hovercard-keyboard-triggering="enabled" data-hovercard-hover-trigger-disabled="true" aria-keyshortcuts="Alt+ArrowRight" aria-haspopup="dialog" role="button" tabindex="0"><div aria-hidden="true" class="zZj8Pb EaVNbc"><i class="google-material-icons notranslate MpJKQd" aria-hidden="true">event</i></div><div class="toUqff  HRaT6d" data-hovercard-id="junaid@appointy.com" data-hovercard-keyboard-triggering="enabled" id="xDetDlgCal" data-hovercard-owner-id="10"><div class=" bgOWSb"><div class="UfeRlc"><span class="XuJrye">Organizer: Junaid Ahmad</span><div aria-hidden="true" class="Bw8As"><span class="y2DuO"><div class="Fh4HL">Junaid Ahmad</div></span></div></div><div class="AzuXid O2VjS"></div></div></div></div>
+
+I want to be below it, also the button in the edit page is still not correctly aligned, it needs padding at the left.
+
+---
+
+the position of manage visitor buttons is still wrong, I want the button to be above the description section when the event is open in edit mode, and I want it at the bottom of the modal when the event modal is open.
+
+---
+
+The manage visitor button is at the right place when there are not guest, but when there are guest added, it shows above two elements at the bottom. also in the edit page, the button needs to be below the availability info element : <div jsname="g7cnnb"><div class="Shmoqf xI9Bs"><div class="pHox4e HyA7Fb"></div><div data-dragsource-ignore="true" class="YwLf7b XsN7kf Q7uSlf"><div class="M5xTOc" jsname="APiERb" jscontroller="bxu4kd"><span class="CbBAab">Availability might be shown in other Google apps</span><span hidden="" data-unique-tt-id="ucc-127"></span><span class="HPTfYd-suEOdc-sM5MNb-OWXEXe-nzrxxc" data-is-tooltip-wrapper="true" id="ow235" __is_owner="true"><button class="pYTkkf-Bz112c-LgbsSe LBr5c n891yc" jscontroller="PIVayb" jsaction="click:h5M12e;clickmod:h5M12e;pointerdown:FEiYhc;pointerup:mF5Elf;pointerenter:EX0mI;pointerleave:vpvbp;pointercancel:xyn4sd;contextmenu:xexox;focus:h06R8; blur:zjh6rb;mlnRJb:fLiPzd;" data-idom-class="LBr5c n891yc" data-use-native-focus-logic="true" aria-label="Visibility in other Google apps can be changed in Calendar settings." data-tooltip-enabled="true" data-tooltip-is-rich="true" aria-describedby="ucc-127" data-tooltip-hoist-to-body="true"><span class="XjoK4b pYTkkf-Bz112c-UHGRz"></span><span class="UTNHae" jscontroller="LBaJxb" jsname="m9ZlFb" jsaction="QBlI0e:u4uo5d;BTifte:aV6zj;nqgE9d:f6959e;fHTtBd:ynrQde"></span><span jsname="S5tZuc" aria-hidden="true" class="pYTkkf-Bz112c-kBDsod-Rtc0Jf"><span class="notranslate VfPpkd-kBDsod" aria-hidden="true"><svg focusable="false" width="20" height="20" viewBox="0 0 24 24" class=" NMm5M"><path d="M11 18h2v-2h-2v2zm1-16C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-2.21 0-4 1.79-4 4h2c0-1.1.9-2 2-2s2 .9 2 2c0 2-3 1.75-3 5h2c0-2.25 3-2.5 3-5 0-2.21-1.79-4-4-4z"></path></svg></span></span><div class="pYTkkf-Bz112c-RLmnJb"></div></button></span></div></div></div></div>
+
+---
+
+okay, the positions are correct, lets fix one more thing, we should stop hiding the button when the extension side panel opens, just keep a sanity check that multiple clicking the button does not send multiple open request of side panel if it is already open. what do you suggest here?
+
+---
+
+I clicked an item in the list on the sidepanel: Visitor events needing passes, and it opened the config screen for that event along with the edit page, but when the edit page was loading, the fallback manage visitor button popped at the right bottom, this should not happen.
+
+---
+
+also an error: Uncaught Error: Extension context invalidated.
+  Context
+  https://calendar.google.com/calendar/u/0/r
+  Stack Trace
+  content-scripts/calendar.js:1 (anonymous function)
+var calendar=(function(){function e(e){return e}var t=`https://unyearning-olympia-unclimactic.ngrok-free.dev`.replace(/\/$/,``),n=`findajx@gmail.com`;`${t}`;var r=`auxilio.activeEid`,i=`auxilio.activeSnapshot`,a=e({matches:[`https://calendar.google.com/*`],main(){let e=null,t=null,r=!1,i=!1,a=null,d=null,f=!1,p=h(()=>{if(!t)return;let e=t;r||i?s(e):(i=!0,setTimeout(()=>{i=!1},3e3),o(e)),e.eid&&!c()&&chrome.runtime.sendMessage({type:`NAVIGATE_TO_EVENT`,eid:e.eid}).catch(()=>{})}),m=H();chrome.runtime.sendMessage({type:`GET_NUDGE_TARGETS`}).then(e=>{e?.ok&&m.setTargets(e.data)}).catch(()=>{}),chrome.runtime.sendMessage({type:`GET_PANEL_STATE`}).then(e=>{e?.ok&&(r=!!e.data.open,m.setPanelOpen(r),C())}).catch(()=>{});let g=0,_=()=>{let e=Date.now();e-g<4e3||(g=e,chrome.runtime.sendMessage({type:`SYNC_NOW`}).catch(()=>{}))},v=0,y=()=>{let e=Date.now();if(!(e-v<2e3)){v=e;for(let e of[0,3e3,8e3])setTimeout(()=>chrome.runtime.sendMessage({type:`SYNC_NOW`}).catch(()=>{}),e)}};_(),document.addEventListener(`visibilitychange`,()=>{document.visibilityState===`visible`&&_()}),window.addEventListener(`focus`,_);let b=/\/eventedit/.test(location.pathname);setInterval(()=>{let e=/\/eventedit/.test(location.pathname);b&&!e&&y(),b=e},1e3);function x(){let t=c(),n=document.querySelector(`[role="dialog"]`);return t?{el:n??document.body,eid:t}:/\/eventedit/.test(location.pathname)?{el:n??document.body,eid:e??``}:n?{el:n,eid:e??``}:null}function S(e,t){let r=e.innerText||``;return{eid:t,magicPresent:r.toLowerCase().includes(`findajx@gmail.com`),guestEmails:l(r).filter(e=>e.toLowerCase()!==n),title:e.querySelector(`input[aria-label*="title" i], input[placeholder*="title" i]`)?.value?.trim()||void 0}}function C(){let e=x();t=e?S(e.el,e.eid):null,t?.magicPresent&&t.eid?d={eid:t.eid,eventId:u(t.eid),title:t.title??``}:!e&&d&&(m.addOptimistic({eid:d.eid,eventId:d.eventId,iCalUid:``,title:d.title,start:void 0}),y(),d=null),p.update(!!e,!r),r&&w()}function w(){let e=t;!e||!e.eid||e.eid!==a&&(a=e.eid,chrome.runtime.sendMessage({type:`FOLLOW_EVENT`,eid:e.eid,snapshot:e}).catch(()=>{}))}document.addEventListener(`click`,t=>{let n=(t.target?.closest?.(`[data-eventid]`))?.getAttribute(`data-eventid`);n&&(f=!0,e=n),setTimeout(C,60)},!0),document.addEventListener(`keydown`,t=>{t.key===`Escape`&&(e=null,setTimeout(C,60))},!0);let T;new MutationObserver(()=>{clearTimeout(T),T=setTimeout(()=>{!document.querySelector(`[role="dialog"]`)&&!c()&&(e=null),C()},150)}).observe(document.body,{childList:!0,subtree:!0}),window.addEventListener(`popstate`,C),chrome.runtime.onMessage.addListener(e=>{e?.type===`__auxilio_panel_state`?(r=!!e.open,r&&(i=!1),r||(a=null),m.setPanelOpen(r),C()):e?.type===`__auxilio_nudge_targets`&&m.setTargets(e.targets??[],e.cancelled??[])}),setTimeout(()=>{!f&&!document.querySelector(`[data-eventid]`)&&console.warn(`[auxilio] no [data-eventid] found — click detection may be unavailable; use the panel’s event list.`)},9e4),C(),console.log(`[auxilio] content script ready on Google Calendar`)}});function o(e){return chrome.runtime.sendMessage({type:`OPEN_FOR_EVENT`,eid:e.eid,snapshot:e}).catch(e=>console.error(`[auxilio] open failed`,e))}function s(e){return chrome.runtime.sendMessage({type:`FOLLOW_EVENT`,eid:e.eid,snapshot:e}).catch(e=>console.error(`[auxilio] follow failed`,e))}function c(){let e=location.pathname.match(/\/eventedit\/([^/?#]+)/);if(e&&e[1]!==`eventedit`)return d(e[1]);let t=new URLSearchParams(location.search).get(`eid`);return t?d(t):null}function l(e){let t=e.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi)??[];return[...new Set(t.map(e=>e.toLowerCase()))]}function u(e){try{let t=e.replace(/-/g,`+`).replace(/_/g,`/`);return t+=`=`.repeat((4-t.length%4)%4),atob(t).split(` `)[0]||``}catch{return``}}function d(e){try{return decodeURIComponent(e)}catch{return e}}var f=`
+
+---
+
+when I am creating a new event, and I click on the manage visitors button, I get a prompt confirming if I am sure on reloading the page, Leave site? Changes that you made may not be saved. Although the side panel opens, but the page reloads, and it causes bad ux, as the unsaved event of the user got lost in the reload, why is the reload even happening?
+
+---
+
+but we would be picking the temporary event id from the system right, like the one we checked if the temporary id becomes the actual id, right?
+
+---
+
+yes
+
+---
+
+The manage visitor button, sometimes renders, sometimes does not on the event modal and on event edit screen.
+
+---
+
+contiue
+
+---
+
+an error in the extension: Uncaught Error: Extension context invalidated.
+Context
+https://calendar.google.com/calendar/u/0/r?msg=Could+not+find+the+requested+event.&msgtok=479d2ed62d8019e81cedc625817367520f7258eb
+Stack Trace
+content-scripts/calendar.js:1 (anonymous function)
+
+---
+
+should we get rid of the automatic opening of the edit screen of an event when a manage visitor button is pressed, becuase there is not much use of it, we are not syncing realtime with the edits on the calendr so no need to open the edit screen I feel, instead shall we give a button like open calendar event?
+
+---
+
+the open in calendar button is not properly designed
+
+---
+
+I opened a event modal, the manage visitor button was there, but when I scrolled, within few seconds it disappeared, what is this bug?
