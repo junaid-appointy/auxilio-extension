@@ -1,0 +1,305 @@
+{
+  "cli_version": "0.7.6",
+  "checkpoint_id": "0a486e3dd7f6",
+  "session_id": "9e6c5447-9423-4fcc-b81b-67f6fda607df",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-29T04:24:48.942684Z",
+  "branch": "main",
+  "checkpoints_count": 18,
+  "save_step_count": 17,
+  "files_touched": [
+    ".gitignore",
+    "PRIVACY_POLICY.md",
+    "auxilio-visitor-share.zip",
+    "package.json",
+    "wxt.config.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "",
+  "turn_id": "8fd69827f1e1",
+  "token_usage": {
+    "input_tokens": 14323,
+    "cache_creation_tokens": 1099855,
+    "cache_read_tokens": 32124134,
+    "output_tokens": 275035,
+    "api_call_count": 156
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_01UMT1MYC8WdmGgS2S6Lk3eG",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "implementation-planning"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "8fd69827f1e1",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 332,
+        "end": 333,
+        "entry_ids": [
+          "07af9201-66d6-4672-8c36-0e1728fb5df4"
+        ],
+        "tool_use_id": "toolu_01UMT1MYC8WdmGgS2S6Lk3eG"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01UMT1MYC8WdmGgS2S6Lk3eG"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: implementation-planning",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 18
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-29T04:24:48.895262Z",
+    "agent_lines": 114,
+    "agent_removed": 4,
+    "human_added": 1521,
+    "human_modified": 1,
+    "human_removed": 0,
+    "total_committed": 1636,
+    "total_lines_changed": 1728,
+    "agent_percentage": 6.828703703703703,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 12,
+      "agent_lines_removed": 3
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 12,
+      "agent_lines_removed": 3
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 12,
+      "agent_lines_removed": 3
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 12,
+      "agent_lines_removed": 3
+    },
+    {
+      "checkpoint_number": 6,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 72,
+      "agent_lines_removed": 3
+    },
+    {
+      "checkpoint_number": 7,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 72,
+      "agent_lines_removed": 3
+    },
+    {
+      "checkpoint_number": 8,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 85,
+      "agent_lines_removed": 3
+    },
+    {
+      "checkpoint_number": 9,
+      "user_lines_added": 169,
+      "user_lines_removed": 0,
+      "agent_lines_added": 85,
+      "agent_lines_removed": 3,
+      "user_added_per_file": {
+        "auxilio-visitor/assets/global-Bg4Tzvqc.css": 1,
+        "auxilio-visitor/background.js": 1,
+        "auxilio-visitor/chunks/global-CfWv9_A7.js": 9,
+        "auxilio-visitor/chunks/options-CZkJ7oGK.js": 1,
+        "auxilio-visitor/chunks/sidepanel-v2O5bqD3.js": 1,
+        "auxilio-visitor/content-scripts/calendar.js": 108,
+        "auxilio-visitor/icon/Auxilio-vector-logo.svg": 18,
+        "auxilio-visitor/manifest.json": 1,
+        "auxilio-visitor/options.html": 14,
+        "auxilio-visitor/sidepanel.html": 15
+      }
+    },
+    {
+      "checkpoint_number": 10,
+      "user_lines_added": 169,
+      "user_lines_removed": 0,
+      "agent_lines_added": 85,
+      "agent_lines_removed": 3,
+      "user_added_per_file": {
+        "auxilio-visitor/assets/global-Bg4Tzvqc.css": 1,
+        "auxilio-visitor/background.js": 1,
+        "auxilio-visitor/chunks/global-CfWv9_A7.js": 9,
+        "auxilio-visitor/chunks/options-CZkJ7oGK.js": 1,
+        "auxilio-visitor/chunks/sidepanel-v2O5bqD3.js": 1,
+        "auxilio-visitor/content-scripts/calendar.js": 108,
+        "auxilio-visitor/icon/Auxilio-vector-logo.svg": 18,
+        "auxilio-visitor/manifest.json": 1,
+        "auxilio-visitor/options.html": 14,
+        "auxilio-visitor/sidepanel.html": 15
+      }
+    },
+    {
+      "checkpoint_number": 11,
+      "user_lines_added": 169,
+      "user_lines_removed": 0,
+      "agent_lines_added": 85,
+      "agent_lines_removed": 3,
+      "user_added_per_file": {
+        "auxilio-visitor/assets/global-Bg4Tzvqc.css": 1,
+        "auxilio-visitor/background.js": 1,
+        "auxilio-visitor/chunks/global-CfWv9_A7.js": 9,
+        "auxilio-visitor/chunks/options-CZkJ7oGK.js": 1,
+        "auxilio-visitor/chunks/sidepanel-v2O5bqD3.js": 1,
+        "auxilio-visitor/content-scripts/calendar.js": 108,
+        "auxilio-visitor/icon/Auxilio-vector-logo.svg": 18,
+        "auxilio-visitor/manifest.json": 1,
+        "auxilio-visitor/options.html": 14,
+        "auxilio-visitor/sidepanel.html": 15
+      }
+    },
+    {
+      "checkpoint_number": 12,
+      "user_lines_added": 169,
+      "user_lines_removed": 0,
+      "agent_lines_added": 94,
+      "agent_lines_removed": 4,
+      "user_added_per_file": {
+        "auxilio-visitor/assets/global-Bg4Tzvqc.css": 1,
+        "auxilio-visitor/background.js": 1,
+        "auxilio-visitor/chunks/global-CfWv9_A7.js": 9,
+        "auxilio-visitor/chunks/options-CZkJ7oGK.js": 1,
+        "auxilio-visitor/chunks/sidepanel-v2O5bqD3.js": 1,
+        "auxilio-visitor/content-scripts/calendar.js": 108,
+        "auxilio-visitor/icon/Auxilio-vector-logo.svg": 18,
+        "auxilio-visitor/manifest.json": 1,
+        "auxilio-visitor/options.html": 14,
+        "auxilio-visitor/sidepanel.html": 15
+      }
+    },
+    {
+      "checkpoint_number": 13,
+      "user_lines_added": 169,
+      "user_lines_removed": 0,
+      "agent_lines_added": 108,
+      "agent_lines_removed": 4,
+      "user_added_per_file": {
+        "auxilio-visitor/assets/global-Bg4Tzvqc.css": 1,
+        "auxilio-visitor/background.js": 1,
+        "auxilio-visitor/chunks/global-CfWv9_A7.js": 9,
+        "auxilio-visitor/chunks/options-CZkJ7oGK.js": 1,
+        "auxilio-visitor/chunks/sidepanel-v2O5bqD3.js": 1,
+        "auxilio-visitor/content-scripts/calendar.js": 108,
+        "auxilio-visitor/icon/Auxilio-vector-logo.svg": 18,
+        "auxilio-visitor/manifest.json": 1,
+        "auxilio-visitor/options.html": 14,
+        "auxilio-visitor/sidepanel.html": 15
+      }
+    },
+    {
+      "checkpoint_number": 14,
+      "user_lines_added": 169,
+      "user_lines_removed": 0,
+      "agent_lines_added": 110,
+      "agent_lines_removed": 4,
+      "user_added_per_file": {
+        "auxilio-visitor/assets/global-Bg4Tzvqc.css": 1,
+        "auxilio-visitor/background.js": 1,
+        "auxilio-visitor/chunks/global-CfWv9_A7.js": 9,
+        "auxilio-visitor/chunks/options-CZkJ7oGK.js": 1,
+        "auxilio-visitor/chunks/sidepanel-v2O5bqD3.js": 1,
+        "auxilio-visitor/content-scripts/calendar.js": 108,
+        "auxilio-visitor/icon/Auxilio-vector-logo.svg": 18,
+        "auxilio-visitor/manifest.json": 1,
+        "auxilio-visitor/options.html": 14,
+        "auxilio-visitor/sidepanel.html": 15
+      }
+    },
+    {
+      "checkpoint_number": 15,
+      "user_lines_added": 169,
+      "user_lines_removed": 0,
+      "agent_lines_added": 115,
+      "agent_lines_removed": 4,
+      "user_added_per_file": {
+        "auxilio-visitor/assets/global-Bg4Tzvqc.css": 1,
+        "auxilio-visitor/background.js": 1,
+        "auxilio-visitor/chunks/global-CfWv9_A7.js": 9,
+        "auxilio-visitor/chunks/options-CZkJ7oGK.js": 1,
+        "auxilio-visitor/chunks/sidepanel-v2O5bqD3.js": 1,
+        "auxilio-visitor/content-scripts/calendar.js": 108,
+        "auxilio-visitor/icon/Auxilio-vector-logo.svg": 18,
+        "auxilio-visitor/manifest.json": 1,
+        "auxilio-visitor/options.html": 14,
+        "auxilio-visitor/sidepanel.html": 15
+      }
+    },
+    {
+      "checkpoint_number": 16,
+      "user_lines_added": 169,
+      "user_lines_removed": 0,
+      "agent_lines_added": 115,
+      "agent_lines_removed": 4,
+      "user_added_per_file": {
+        "auxilio-visitor/assets/global-Bg4Tzvqc.css": 1,
+        "auxilio-visitor/background.js": 1,
+        "auxilio-visitor/chunks/global-CfWv9_A7.js": 9,
+        "auxilio-visitor/chunks/options-CZkJ7oGK.js": 1,
+        "auxilio-visitor/chunks/sidepanel-v2O5bqD3.js": 1,
+        "auxilio-visitor/content-scripts/calendar.js": 108,
+        "auxilio-visitor/icon/Auxilio-vector-logo.svg": 18,
+        "auxilio-visitor/manifest.json": 1,
+        "auxilio-visitor/options.html": 14,
+        "auxilio-visitor/sidepanel.html": 15
+      }
+    },
+    {
+      "checkpoint_number": 17,
+      "user_lines_added": 169,
+      "user_lines_removed": 0,
+      "agent_lines_added": 115,
+      "agent_lines_removed": 4,
+      "user_added_per_file": {
+        "auxilio-visitor/assets/global-Bg4Tzvqc.css": 1,
+        "auxilio-visitor/background.js": 1,
+        "auxilio-visitor/chunks/global-CfWv9_A7.js": 9,
+        "auxilio-visitor/chunks/options-CZkJ7oGK.js": 1,
+        "auxilio-visitor/chunks/sidepanel-v2O5bqD3.js": 1,
+        "auxilio-visitor/content-scripts/calendar.js": 108,
+        "auxilio-visitor/icon/Auxilio-vector-logo.svg": 18,
+        "auxilio-visitor/manifest.json": 1,
+        "auxilio-visitor/options.html": 14,
+        "auxilio-visitor/sidepanel.html": 15
+      }
+    }
+  ]
+}

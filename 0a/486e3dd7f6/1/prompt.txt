@@ -1,0 +1,153 @@
+I do not see the changes, did you build the extension?
+
+---
+
+can we improve the look and position of the edit details button, can it be like at the bottom centered, and has a subtle background, going from edge to edge of the card, like it is opening a scroll? what do you suggest, and demonstrate how it would look.
+
+---
+
+can we improve the look and position of the edit details button, can it be like at the bottom centered, and has a subtle background, going from edge to edge of the card, like it is opening a scroll? what do you suggest, and demonstrate how it would look. also we need to allow to toggle even the guest whose pass already sent, like in the add on, already toggled people whose toggle is turned off, their invite gets cancelled, you can see the auxilio-workspace add-on flow to understand, also go through the whole auxilio-worspace add on to check what feature are missing in our extension.
+
+---
+
+but our extension only works after sign in and during sign in we do take user permission for calendar, so why do we need connect calendar CTA?
+
+---
+
+yes, I do care for move cancel syncing when panel is closed, but I do not want to make the user sign in twice in the extension.
+
+---
+
+yes dig into engine code.
+
+---
+
+did you build the extension?
+
+---
+
+okay, I want to push the extension in unlisted form or should I go for internal only. I will be using different developer account than the organisation email based one. also which file would I upload on chrome developer store?
+
+---
+
+okay, I want to push the extension in unlisted form or should I go for internal only. I will be using different developer account than the organisation email based one. also which file would I upload on chrome developer store? in the extension we will use the deployed engine url: https://ops-engine-dev-330299.bifrost.saastack.site
+
+---
+
+yes prep the production build now
+
+---
+
+where is the ZIP or CRX file in the extension folder?
+
+---
+
+even in an unlisted form do I need to fill all the details and justification for the permission?
+
+---
+
+A justification for alarms is required. This can be entered on the Privacy practices tab.
+A justification for host permission use is required. This can be entered on the Privacy practices tab.
+A justification for identity is required. This can be entered on the Privacy practices tab.
+A justification for notifications is required. This can be entered on the Privacy practices tab.
+A justification for remote code use is required. This can be entered on the Privacy practices tab.
+A justification for sidePanel is required. This can be entered on the Privacy practices tab.
+A justification for storage is required. This can be entered on the Privacy practices tab.
+At least one screenshot or video is required.
+Icon image is missing.
+The detailed description is too short or is missing. Minimal length is 25 characters.
+The single purpose description is required. This can be entered on the Privacy practices tab.
+To publish your item, you must certify that your data usage complies with our Developer Program Policies. You can certify this on the Privacy practices tab of the item edit page.
+
+---
+
+At least one screenshot or video is required.
+Icon image is missing.
+You must provide a link to your privacy policy on the Privacy tab if your item collects user data.
+
+---
+
+okay I want to manually share the extension to a friend, how can I do that?
+
+---
+
+create one zip that I can share with him.
+
+---
+
+❯ create one zip that I can share with him also  set this up:
+
+I can pin a stable key now: generate a keypair, add the public key to wxt.config.ts, rebuild, and give you back (a) the resulting extension ID and (b) the exact https://<id>.chromiumapp.org/ redirect URI to paste into the OAuth client. Then your friend's install and yours share one ID and sign-in works.
+
+---
+
+so this will be the authorised redirect URL?https://babflijdehjlajekidajimhaggoceabn.chromiumapp.org/
+
+---
+
+how do I test it that it is working using my device?
+
+---
+
+You can't sign in to this app because it doesn't comply with Google's OAuth 2.0 policy.
+
+If you're the app developer, register the redirect URI in the Google Cloud Console.
+Request details: redirect_uri=https://phlplhnahmohnbfdfcemdogompigafjm.chromiumapp.org/ flowName=GeneralOAuthFlow
+
+---
+
+I think this stale version was uploaded on chrome dev store also. which folder should I upload there?
+
+---
+
+There was a problem uploading your file. Please try again.
+Invalid version number in manifest: 0.11.5. Please make sure the newly uploaded package has a larger version in file manifest.json than the published package: 0.11.5.
+key field value in the manifest doesn't match the current item.
+
+---
+
+which file to use for local testing, constant development test?
+
+---
+
+why do I always have to do cmd shift G and paste url of hidden file, can I not do something so that I can easily find file and upload?
+
+---
+
+no for dev mode, load unpacked option on chrome. how do I find the file in that case?
+
+---
+
+I loaded the 0.11.6 and it is giving me same access blocked error.
+
+---
+
+I loaded the 0.11.6 and it is giving me same access blocked error.
+
+
+You can't sign in to this app because it doesn't comply with Google's OAuth 2.0 policy.
+
+If you're the app developer, register the redirect URI in the Google Cloud Console.
+Request details: redirect_uri=https://cindjjpjkhdmdfnpigbbgcioiikoecbk.chromiumapp.org/ flowName=GeneralOAuthFlow
+
+---
+
+retry
+
+---
+
+I installed the published extensionm on chrome store, it was 0.11.6 it still gave me the error, I added the redirect uri in the google console, still there is the error. Error 400: redirect_uri_mismatch
+
+You can't sign in to this app because it doesn't comply with Google's OAuth 2.0 policy.
+
+If you're the app developer, register the redirect URI in the Google Cloud Console.
+Request details: redirect_uri=https://phlplhnahmohnbfdfcemdogompigafjm.chromiumapp.org/ flowName=GeneralOAuthFlow
+
+---
+
+Error 400: redirect_uri_mismatch
+
+You can't sign in to this app because it doesn't comply with Google's OAuth 2.0 policy.
+
+If you're the app developer, register the redirect URI in the Google Cloud Console.
+Request details: access_type=offline scope=openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/calendar.events.readonly https://www.googleapis.com/auth/contacts.readonly https://www.googleapis.com/auth/contacts.other.readonly response_type=code token id_token redirect_uri=https://phlplhnahmohnbfdfcemdogompigafjm.chromiumapp.org/ nonce=d621cb8b-4a59-4b8b-80b1-f976c56b43a9 prompt=consent select_account flowName=GeneralOAuthFlow REDACTED.apps.googleusercontent.com
