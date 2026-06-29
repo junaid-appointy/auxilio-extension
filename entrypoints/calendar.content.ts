@@ -507,6 +507,7 @@ function createButtonUI(onClick: () => void) {
     insert: (el: HTMLElement) => void;
     inset: number;
     inline?: boolean;
+    list?: HTMLElement;
   };
 
   /** Text/ARIA-based only — never CSS classes — so we stay decoupled from
@@ -523,13 +524,15 @@ function createButtonUI(onClick: () => void) {
     const dialog =
       surfaceEl && surfaceEl.matches?.('[role="dialog"]') ? surfaceEl : null;
 
-    // Inline next to the native "Save" — both the full editor page AND the quick-create
-    // popover for an UNSAVED event (which carries "More options" + "Save"). Scope the
-    // search to the dialog when we're in one so we never grab a Save from elsewhere.
-    const save = findButtonByTextIn(dialog ?? document, 'save');
-    const saveParent = save?.parentElement;
-    if (save && saveParent) {
-      return { insert: (el) => saveParent.insertBefore(el, save), inset: 0, inline: true };
+    // Inline next to the native "Save" — only in the quick-create popover for an UNSAVED
+    // event (which carries "More options" + "Save"). On the full editor page (!dialog),
+    // we skip this to place a native content row in the Event Details section instead.
+    if (dialog) {
+      const save = findButtonByTextIn(dialog, 'save');
+      const saveParent = save?.parentElement;
+      if (save && saveParent) {
+        return { insert: (el) => saveParent.insertBefore(el, save), inset: 0, inline: true };
+      }
     }
 
     // A saved-event detail popover has no Save → its button is the Google-style content
@@ -542,13 +545,13 @@ function createButtonUI(onClick: () => void) {
     const afterAvail = avail ? rowsListFor(avail) : null;
     if (afterAvail) {
       const { list, row } = afterAvail;
-      return { insert: (el) => list.insertBefore(el, row.nextSibling), inset: rowInset(row, list) };
+      return { insert: (el) => list.insertBefore(el, row.nextSibling), inset: rowInset(row, list), list };
     }
     const desc = findEditDescription();
     const aboveDesc = desc ? rowsListFor(desc) : null;
     if (aboveDesc) {
       const { list, row } = aboveDesc;
-      return { insert: (el) => list.insertBefore(el, row), inset: rowInset(row, list) };
+      return { insert: (el) => list.insertBefore(el, row), inset: rowInset(row, list), list };
     }
     return null;
   }
@@ -572,7 +575,7 @@ function createButtonUI(onClick: () => void) {
     ensureInjectedStyles();
     injected = anchor.inline
       ? buildInlineButton(onClick)
-      : buildInjectedRow(onClick, anchor.inset);
+      : buildInjectedRow(onClick, anchor.inset, anchor.list);
     anchor.insert(injected);
     return true;
   }
@@ -960,15 +963,48 @@ function makeNativeButton(onClick: () => void): HTMLButtonElement {
 
 /** A full-width row carrying the button, indented to align with the section
  *  content column. Flows like a native section, so it can't overlap siblings. */
-function buildInjectedRow(onClick: () => void, inset: number): HTMLElement {
+function buildInjectedRow(onClick: () => void, inset: number, list?: HTMLElement): HTMLElement {
   const row = document.createElement('div');
   row.id = INJECT_ID;
   row.className = 'auxilio-mv-row';
-  if (inset) row.style.paddingLeft = `${inset}px`;
-  row.appendChild(makeNativeButton(onClick));
-  // Guard only the row's empty padding — clicks there must not dismiss Google's
-  // surface; the button manages its own interactions (shieldInteractions).
-  shieldPadding(row);
+  const title = buildContentRowInner(row);
+
+  if (list) {
+    styleContentRowLikeNative(row, list);
+  } else if (inset) {
+    row.style.paddingLeft = `${inset}px`;
+  }
+
+  let firing = false;
+  const activate = async (e?: Event) => {
+    e?.stopPropagation();
+    if (firing) return;
+    firing = true;
+    row.setAttribute('aria-busy', 'true');
+    const prev = title.textContent;
+    title.textContent = 'Opening…';
+    try { await onClick(); }
+    finally { title.textContent = prev; row.removeAttribute('aria-busy'); firing = false; }
+  };
+
+  const onRow = (e: Event) => {
+    if ((e.type === 'pointerup' || e.type === 'click') && title.contains(e.target as Node)) {
+      activate(e);
+      return;
+    }
+    e.stopPropagation();
+  };
+
+  for (const type of ['pointerup', 'click', 'pointerdown', 'mousedown', 'touchstart'] as const) {
+    row.addEventListener(type, onRow, true);
+  }
+  row.addEventListener('keydown', (e) => {
+    if ((e.key === 'Enter' || e.key === ' ') && title.contains(e.target as Node)) {
+      e.preventDefault();
+      activate(e);
+    }
+  });
+
   return row;
 }
 
@@ -1076,11 +1112,19 @@ function styleContentRowLikeNative(row: HTMLElement, list: HTMLElement): void {
 
   // 4. Programmatically pull link color & font sizes, but enforce bold title
   const color = rs.color; // primary text color for the current theme
-  const link = list.closest('[role="dialog"]')?.querySelector<HTMLElement>('a[href], [role="link"]');
-  const linkColor = link ? getComputedStyle(link).color : '';
+  const root = list.closest('[role="dialog"]') ?? document;
+  let linkColor = '';
+  for (const el of root.querySelectorAll<HTMLElement>('a[href], [role="link"]')) {
+    const c = getComputedStyle(el).color;
+    if (c && c !== color && c !== 'rgb(60, 64, 67)' && c !== 'rgb(32, 33, 36)' && c !== 'rgb(0, 0, 0)') {
+      linkColor = c;
+      break;
+    }
+  }
+  if (!linkColor) linkColor = '#1a73e8'; // fallback to standard Calendar blue
 
   if (title) {
-    title.style.color = linkColor || (refTitle ? getComputedStyle(refTitle).color : color);
+    title.style.color = linkColor;
     if (refTitle) {
       const ts = getComputedStyle(refTitle);
       title.style.fontSize = ts.fontSize;
