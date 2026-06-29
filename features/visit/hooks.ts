@@ -99,11 +99,14 @@ export function useResolveEvent(eid: string | null) {
   });
 }
 
-export function useDraft(event: ActiveEvent | undefined) {
+export function useDraft(event: ActiveEvent | undefined, enabled = true) {
   return useQuery({
     queryKey: ['draft', event?.iCalUid],
     queryFn: () => rpc({ type: 'DRAFT_LOAD', event: event! }),
-    enabled: !!event?.iCalUid,
+    // `enabled` lets the caller suppress the engine draft call entirely for an event
+    // the user only attends (a guest) — they never register visitors, so we don't
+    // load/create a draft for them.
+    enabled: enabled && !!event?.iCalUid,
   });
 }
 

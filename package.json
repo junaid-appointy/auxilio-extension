@@ -2,7 +2,7 @@
   "name": "auxilio-extension",
   "description": "Register office visitors directly from a Google Calendar event (desktop Chrome surface for Auxilio / Office Ops).",
   "private": true,
-  "version": "0.11.5",
+  "version": "0.11.25",
   "type": "module",
   "scripts": {
     "dev": "wxt",
@@ -11,6 +11,8 @@
     "build:firefox": "wxt build -b firefox",
     "zip": "wxt zip",
     "zip:firefox": "wxt zip -b firefox",
+    "zip:store": "WXT_STORE_BUILD=1 WXT_ENGINE_URL=https://ops-engine-dev-330299.bifrost.saastack.site wxt zip && npm run reveal",
+    "reveal": "open -R \"$(ls -t output/*-chrome.zip | head -1)\" 2>/dev/null || open output",
     "compile": "tsc --noEmit",
     "postinstall": "wxt prepare"
   },

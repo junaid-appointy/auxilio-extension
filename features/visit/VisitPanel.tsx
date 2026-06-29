@@ -61,7 +61,15 @@ export function VisitPanel() {
   const visitorEvents = useVisitorEvents(!eid && !!auth.data?.signedIn);
   const resolve = useResolveEvent(eid);
   const event = resolve.data;
-  const draft = useDraft(event);
+  // Host-only: only the event's ORGANIZER registers visitors. A guest who opens the
+  // panel for an event they were merely invited to must not be able to edit/send —
+  // their copy of the event carries the magic address too, but it isn't theirs to
+  // manage. We compare the resolved organizer to the signed-in user; on any missing
+  // signal we default to NOT a guest, so a legitimate host is never blocked.
+  const myEmail = auth.data?.email?.toLowerCase();
+  const organizerEmail = event?.organizerEmail?.toLowerCase();
+  const isGuest = !!event && !!organizerEmail && !!myEmail && organizerEmail !== myEmail;
+  const draft = useDraft(event, !isGuest);
   // Fill real names + photos for email-only guests in the background (People API).
   useResolveGuestNames(draft.data);
 
@@ -177,6 +185,17 @@ export function VisitPanel() {
     return (
       <Shell onBack={back}>
         <ErrorState message={msg} onRetry={() => resolve.refetch()} />
+      </Shell>
+    );
+  }
+  // Guest of someone else's event → nothing to manage here (see isGuest above).
+  if (isGuest) {
+    return (
+      <Shell onBack={back}>
+        <NoticeState
+          title="You are a guest of this event"
+          body={`${hostNameFromEmail(event?.organizerEmail)} manages visitor passes for this event. There is nothing for you to do here.`}
+        />
       </Shell>
     );
   }
@@ -662,6 +681,17 @@ function SendSummary({
       </div>
     </div>
   );
+}
+
+/** Friendly host name from the organizer email (local part, title-cased), for the
+ *  guest notice. Falls back to "The host" when there's no usable email. */
+function hostNameFromEmail(email?: string): string {
+  const local = (email ?? '').split('@')[0] ?? '';
+  const name = local
+    .replace(/[._-]+/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .trim();
+  return name || 'The host';
 }
 
 function formatWhen(start: string, end?: string): string {

@@ -49,7 +49,7 @@ export interface GCalEvent {
   recurringEventId?: string;
   start?: { dateTime?: string; date?: string };
   end?: { dateTime?: string; date?: string };
-  organizer?: { email?: string };
+  organizer?: { email?: string; self?: boolean };
   attendees?: {
     email?: string;
     displayName?: string;
@@ -195,7 +195,7 @@ export async function listEvents(
     url.searchParams.set('maxResults', '250');
     url.searchParams.set(
       'fields',
-      'items(id,iCalUID,status,summary,location,recurringEventId,start,end,attendees(email,resource)),nextPageToken,nextSyncToken',
+      'items(id,iCalUID,status,summary,location,recurringEventId,start,end,organizer(self,email),attendees(email,resource)),nextPageToken,nextSyncToken',
     );
     if (opts.syncToken) {
       url.searchParams.set('syncToken', opts.syncToken);

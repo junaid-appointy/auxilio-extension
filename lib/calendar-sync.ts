@@ -37,8 +37,10 @@ const LAST_FULL_KEY = 'auxilio.lastFullSync';
 const CONFIG_SIG_KEY = 'auxilio.configSig';
 /** Bump when the events.list query SHAPE changes (e.g. adding timeMax) so the next
  *  load does one clean full re-scan to rebuild the marked set under the new query.
- *  v2 = bounded forward window (timeMax). */
-const SYNC_SCHEMA_VERSION = 2;
+ *  v2 = bounded forward window (timeMax). v3 = organizer-only gate — forces a clean
+ *  re-scan that drops events the user is merely a GUEST of, which earlier builds
+ *  wrongly marked + nudged. */
+const SYNC_SCHEMA_VERSION = 3;
 const PAST_GRACE_MS = 60 * 60_000; // keep events until 1h after they end
 const HANDLED_TTL_MS = 30 * 24 * 60 * 60_000; // forget "handled" after 30 days
 const FULL_RESYNC_INTERVAL_MS = 12 * 60 * 60_000; // re-scan the whole window twice a day
@@ -203,18 +205,24 @@ async function doRunSync(accessToken: string): Promise<SyncResult> {
     if (!ev.id) continue;
     changedIds.add(ev.id);
     const cancelled = ev.status === 'cancelled';
-    const marked_ = isMarked(ev);
+    const hasMagic = isMarked(ev);
     // DIAGNOSTIC: the magic address is somewhere in this event's payload, yet
     // isMarked() didn't flag it — i.e. it's not a structured attendee email and
     // not in `location` (e.g. it's only in the description, or events.list
     // returned a trimmed attendee list). This is the signature of a primary-
     // calendar miss; the warning shows exactly what we got back.
-    if (!marked_ && MAGIC_ADDRESS && JSON.stringify(ev).toLowerCase().includes(MAGIC_ADDRESS)) {
+    if (!hasMagic && MAGIC_ADDRESS && JSON.stringify(ev).toLowerCase().includes(MAGIC_ADDRESS)) {
       console.warn(
         '[auxilio] sync MISS: magic address in payload but isMarked() is false',
         { id: ev.id, summary: ev.summary, location: ev.location, attendees: ev.attendees, status: ev.status },
       );
     }
+    // Only the event's ORGANIZER (the host) registers visitors. A guest who was
+    // merely invited to a visitor event sees the magic address among the attendees
+    // on THEIR copy too — but they must never be nudged/badged/notified to "manage"
+    // someone else's event (the reported bug). organizer.self is Google's
+    // authoritative "this calendar's user owns the event" flag.
+    const marked_ = hasMagic && ev.organizer?.self === true;
     if (marked_ && !cancelled) {
       const seriesId = ev.recurringEventId || ev.id;
       const summary: VisitorEventSummary = {
@@ -235,12 +243,17 @@ async function doRunSync(accessToken: string): Promise<SyncResult> {
       }
       marked[ev.id] = summary;
     } else {
-      // Cancelled (deleted) or no longer a visitor event → not pending. Report
-      // it so any optimistic in-page nudge for it gets purged, and forget any
-      // "handled" record so the id can't linger.
+      // Cancelled (deleted) or no longer a tracked visitor event (magic removed, or
+      // not organized by us) → not pending. Report it so any optimistic in-page nudge
+      // for it gets purged, and drop it from the marked set.
       if (cancelled || prevMarked[ev.id]) cancelledIds.push(ev.id);
       delete marked[ev.id];
-      delete handled[ev.id];
+      // Only FORGET the "handled" record on a genuine cancel/delete. Don't drop it
+      // just because the event left our tracked set for another reason (e.g. a
+      // momentarily-absent organizer.self on one sync pass) — that would let an
+      // already-sent event re-nudge through the optimistic path. The 30-day TTL
+      // (handledCutoff below) prunes stale records anyway.
+      if (cancelled) delete handled[ev.id];
     }
   }
 

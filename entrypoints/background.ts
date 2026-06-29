@@ -14,6 +14,7 @@ import { decodeEid, encodeEid, fetchActiveEvent } from '@/lib/calendar';
 import {
   clearSyncToken,
   isEventHandled,
+  isEventMarked,
   listForPanel,
   listMarked,
   listPendingICalUids,
@@ -390,6 +391,35 @@ async function handle(
       // Lets the in-page optimistic nudge skip an event whose passes were already
       // sent from this extension (the sync filters these, the optimistic path can't).
       return ok({ handled: await isEventHandled(msg.eventId) });
+
+    case 'IS_NUDGE_WORTHY':
+      // The in-page OPTIMISTIC nudge (the instant, DOM-derived guess) exists ONLY to
+      // bridge sync lag for a brand-new event. So suppress it for anything the sync
+      // already knows about:
+      //  - isEventHandled → passes were already sent from this extension; and
+      //  - isEventMarked  → the event is already in the marked set, i.e. a pending
+      //    event the sync banner already covers (and whose dismissal the content
+      //    script remembers) OR an already-handled one.
+      // This is what stops an already-sent / already-dismissed event from nudging
+      // again when it's reopened and closed after a page refresh. Only a genuinely
+      // new event (in neither set) reaches the organizer check below.
+      return withTokens(async (t) => {
+        if (await isEventHandled(msg.eventId)) return { worthy: false };
+        if (await isEventMarked(msg.eventId)) return { worthy: false };
+        // Brand-new event the sync hasn't caught yet: confirm the signed-in user is
+        // the ORGANIZER (not a guest) before the instant nudge. events.get may 404 on
+        // a just-created event → assume worthy (the host's own new event); the
+        // organizer-gated background sync reconciles it moments later.
+        try {
+          const ev = await fetchActiveEvent(msg.eid, t.accessToken);
+          const me = (t.email ?? (await authStatus()).email ?? '').toLowerCase();
+          const org = (ev.organizerEmail ?? '').toLowerCase();
+          if (!org || !me) return { worthy: true };
+          return { worthy: org === me };
+        } catch {
+          return { worthy: true };
+        }
+      });
 
     case 'SYNC_NOW':
       // On-demand sync (page load / tab focus / just left the editor) so the

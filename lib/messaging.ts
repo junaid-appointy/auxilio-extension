@@ -35,6 +35,7 @@ export type RpcRequest =
   | { type: 'LIST_VISITOR_EVENTS' }
   | { type: 'GET_NUDGE_TARGETS' }
   | { type: 'IS_EVENT_HANDLED'; eventId: string }
+  | { type: 'IS_NUDGE_WORTHY'; eid: string; eventId: string }
   | { type: 'SYNC_NOW' }
   | { type: 'GET_PANEL_STATE' }
   | { type: 'NAVIGATE_TO_EVENT'; eventId?: string; eid?: string };
@@ -57,6 +58,7 @@ export interface RpcResultMap {
   LIST_VISITOR_EVENTS: PanelVisitorEvent[];
   GET_NUDGE_TARGETS: VisitorEventSummary[];
   IS_EVENT_HANDLED: { handled: boolean };
+  IS_NUDGE_WORTHY: { worthy: boolean };
   SYNC_NOW: { synced: boolean };
   GET_PANEL_STATE: { open: boolean };
   NAVIGATE_TO_EVENT: { navigated: boolean };

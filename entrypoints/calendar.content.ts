@@ -75,6 +75,9 @@ export default defineContentScript({
     let followedEid: string | null = null; // last event auto-pushed to the panel
     let pendingMagic: { eid: string; eventId: string; title: string } | null = null;
     let everSawEventId = false;
+    // Set by readSurface when a non-event modal is open (a confirmation): we keep the
+    // injected button in the form behind it, but must not float the FAB over the modal.
+    let suppressFab = false;
 
     // Button UI: a native injected button when a clean anchor exists, else a
     // floating fallback (Idea 2). The magic-address gate is dropped — the button
@@ -176,39 +179,56 @@ export default defineContentScript({
     /** Read the open event surface, or null if none is open. `eid` may be '' for
      *  a brand-new, not-yet-saved event (no data-eventid / URL eid yet). */
     function readSurface(): { el: HTMLElement; eid: string } | null {
+      suppressFab = false;
       const fromUrl = urlEid();
-      const dialog = document.querySelector('[role="dialog"]') as HTMLElement | null;
-      // A dialog that isn't an event surface — e.g. Google's "Send update emails
-      // to existing guests?" save confirmation — must NEVER host our button, and
-      // while one is open we suppress entirely so we don't inject onto it (or
-      // behind it, over the editor). This is what kept the button appearing on
-      // unrelated dialogs and "flashing" away when such a dialog opened/closed.
-      if (dialog) {
-        // Sticky recognition: once a dialog node is accepted as an event
-        // surface, keep treating it as one until it actually leaves the DOM.
-        // Google re-renders the popover's innards constantly; isEventDialog is a
-        // heuristic, so a single tick where it momentarily reads false would
-        // otherwise yank the button and pop it back a frame later — the flicker.
-        // A genuinely different dialog (a confirmation) is a different node, so
-        // it's still evaluated strictly and correctly rejected.
-        const isEvent = dialog === eventDialog || isEventDialog(dialog);
-        if (!isEvent) return null;
-        eventDialog = dialog;
-      } else {
+      const onEditor = /\/eventedit/.test(location.pathname);
+      // Only VISIBLE dialogs count. Google leaves hidden [role="dialog"] nodes in the
+      // DOM (the Google Meet / "add conferencing" picker, recurrence + notification
+      // menus, transient loaders that flash while a section streams in). A hidden
+      // leftover must NEVER be mistaken for an open confirmation that suppresses our
+      // button — treating it as one is exactly what made the button vanish the moment
+      // Calendar lazy-loaded something (e.g. the Meet link) and never return until the
+      // surface was reopened.
+      // STICKY by node identity: once a dialog is accepted as the event surface, keep
+      // returning it as long as that NODE stays connected AND visible — even while its
+      // innards momentarily fail the isEventDialog heuristic (its data-eventid row gets
+      // swapped, the content list rebuilt) as Google streams content in. Re-running the
+      // heuristic every tick is what let the surface read as "gone" mid-load and hid
+      // the button. Drop it only when the node truly leaves the DOM or is hidden (i.e.
+      // the popover was closed).
+      if (eventDialog && (!eventDialog.isConnected || !isVisible(eventDialog))) {
         eventDialog = null;
       }
-      if (fromUrl) {
-        return { el: dialog ?? document.body, eid: fromUrl };
+      if (eventDialog) {
+        return { el: eventDialog, eid: fromUrl ?? clickedEid ?? '' };
       }
-      // Full-screen create/edit editor. An existing event always carries its eid
-      // in the URL (handled above), so reaching here means a brand-new, unsaved
-      // event → eid ''. Never fall back to clickedEid: it can be stale from a
-      // previously viewed event and would point the panel at the wrong one.
-      if (/\/eventedit/.test(location.pathname)) {
-        return { el: dialog ?? document.body, eid: '' };
+
+      // No sticky surface yet → recognize one. Only VISIBLE dialogs count: Google
+      // leaves hidden [role="dialog"] leftovers in the DOM (the Meet/recurrence pickers,
+      // transient loaders) that must never be mistaken for a confirmation that
+      // suppresses our button.
+      const dialog = (
+        Array.from(document.querySelectorAll('[role="dialog"]')) as HTMLElement[]
+      ).filter(isVisible)[0] ?? null;
+      if (dialog) {
+        if (isEventDialog(dialog)) {
+          eventDialog = dialog;
+          return { el: dialog, eid: fromUrl ?? clickedEid ?? '' };
+        }
+        // A visible NON-event dialog (e.g. the "Send update emails?" confirmation). If
+        // the real surface is the edit PAGE underneath (URL eid / eventedit), keep the
+        // button in that page's form; otherwise this dialog is the sole surface, so
+        // suppress. Either way, don't float the FAB over the modal.
+        suppressFab = true;
+        if (!fromUrl && !onEditor) return null;
       }
-      // Detail / quick-create popover.
-      if (dialog) return { el: dialog, eid: clickedEid ?? '' };
+
+      if (fromUrl) return { el: document.body, eid: fromUrl };
+      // Full-screen create/edit editor. An existing event always carries its eid in
+      // the URL (handled above), so reaching here means a brand-new, unsaved event →
+      // eid ''. Never fall back to clickedEid: it can be stale from a previously
+      // viewed event and would point the panel at the wrong one.
+      if (onEditor) return { el: document.body, eid: '' };
       return null;
     }
 
@@ -261,14 +281,17 @@ export default defineContentScript({
         // skip the optimistic path and let the (now bounded, ~2s) API sync deliver
         // the named nudge a moment later. syncBurst fires either way.
         if (pm.title) {
-          // …but NOT for an event whose passes are already sent: viewing+closing it
-          // must not re-nudge (the sync set filters handled events; this optimistic
-          // path bypasses that, so check the background's handled overlay first).
-          safeSend<{ ok?: boolean; data?: { handled?: boolean } }>({
-            type: 'IS_EVENT_HANDLED',
+          // …but NOT for an event whose passes are already sent, or one the user is
+          // only a GUEST of: viewing+closing it must not nudge. The sync set filters
+          // both, but this optimistic path bypasses it — so ask the background to
+          // confirm (not handled AND the user is the organizer) before showing the
+          // instant nudge.
+          safeSend<{ ok?: boolean; data?: { worthy?: boolean } }>({
+            type: 'IS_NUDGE_WORTHY',
+            eid: pm.eid,
             eventId: pm.eventId,
           }).then((res) => {
-            if (res?.ok && res.data?.handled) return; // already done → no nudge
+            if (!res?.ok || !res.data?.worthy) return; // already done / not host → no nudge
             nudge.addOptimistic({
               eid: pm.eid,
               eventId: pm.eventId,
@@ -287,8 +310,11 @@ export default defineContentScript({
       // lose the first-open injection race. The grace period in update() still
       // lets the native button win whenever it injects in time, so the FAB only
       // appears as a genuine last resort. (We no longer navigate the tab on click,
-      // so the old "flash while a navigated page loads" concern is moot.)
-      button.update(!!surface);
+      // so the old "flash while a navigated page loads" concern is moot.) The FAB is
+      // held back while a non-event modal is up so it never floats over a confirmation.
+      // Pass the resolved surface element so the button anchors INSIDE it (never a
+      // hidden leftover dialog) and re-places itself if a re-render drifts it out.
+      button.update(!!surface, !suppressFab, surface?.el ?? null);
       if (panelOpen) maybeFollow();
     }
 
@@ -335,6 +361,12 @@ export default defineContentScript({
     // Detect surface open/close + edits (e.g. adding the magic address live).
     let timer: number | undefined;
     const observer = new MutationObserver(() => {
+      // Flicker-free keep-alive FIRST, synchronously: if Google's re-render just
+      // detached our button, re-place it in this same microtask (before paint) rather
+      // than waiting out the 150ms debounce below — that gap was the visible flicker,
+      // and a re-render landing as a lazy section finishes loading could otherwise drop
+      // the button until the next poll. The full re-evaluation still runs debounced.
+      button.keepAlive();
       clearTimeout(timer);
       timer = setTimeout(() => {
         if (!document.querySelector('[role="dialog"]') && !urlEid()) {
@@ -438,32 +470,48 @@ const INJECT_ID = 'auxilio-manage-visitors';
  */
 function createButtonUI(onClick: () => void) {
   const fab = mountFloating(onClick);
+  // Popover surface: an in-flow footer row inserted (settle-gated) into the Going? footer
+  // section. Probe-proven to survive once placed after the popover finishes loading.
+  const popover = mountPopoverFooter(onClick);
   let injected: HTMLElement | null = null;
   let retryTimer: ReturnType<typeof setTimeout> | undefined;
+  // Last decision from update(), so keepAlive() can re-place the button synchronously
+  // (flicker-free) when a Google re-render detaches it, without recomputing the surface.
+  let lastShow = false;
+  let lastSurfaceEl: HTMLElement | null = null;
 
   // A clean injection anchor: where to drop the button + how far to indent it so
   // it lines up with the section's content column (past Google's icon gutter).
   // `inline` = sit next to a native button instead of as its own row.
-  type Anchor = { insert: (el: HTMLElement) => void; inset: number; inline?: boolean };
+  type Anchor = {
+    insert: (el: HTMLElement) => void;
+    inset: number;
+    inline?: boolean;
+  };
 
   /** Text/ARIA-based only — never CSS classes — so we stay decoupled from
    *  Google's obfuscated markup. Places the button where it reads as part of the
    *  form: between Description and the next section on the edit page, and as the
    *  last row of the detail popover's content list. Floating only as last resort. */
-  function findAnchor(): Anchor | null {
-    // Full-screen edit page → our own row just BELOW the Availability/Visibility
-    // info section (falling back to above Description).
-    if (/\/eventedit/.test(location.pathname)) {
-      // Primary: an inline button right before the native "Save" in the editor's
-      // action bar, so it sits next to Save / More options and reads as a native
-      // inline action — what the host wants on a new/unsaved event.
+  function findAnchor(surfaceEl: HTMLElement | null): Anchor | null {
+    // Anchor strictly within the surface readSurface identified. We use the PASSED
+    // element, never document.querySelector('[role="dialog"]') — that returned the
+    // first dialog in DOM order, which while Calendar lazy-loads (the Meet link, etc.)
+    // can be a HIDDEN leftover dialog. Injecting into it placed the button in an
+    // invisible node, so it "vanished" and (being isConnected) never re-placed itself
+    // until the surface was reopened.
+    const dialog =
+      surfaceEl && surfaceEl.matches?.('[role="dialog"]') ? surfaceEl : null;
+
+    // Page surface (full-screen editor, or a url-eid view): an inline button right
+    // before the native "Save" in the action bar, else our own full-width row just
+    // BELOW the Availability/Visibility info section, else above Description.
+    if (!dialog) {
       const save = findButtonByText('save');
       const saveParent = save?.parentElement;
       if (save && saveParent) {
         return { insert: (el) => saveParent.insertBefore(el, save), inset: 0, inline: true };
       }
-      // Fallback: our own full-width row just BELOW the Availability/Visibility info
-      // section (else above Description) when the action bar can't be found.
       const avail = findAvailabilityInfo();
       const afterAvail = avail ? rowsListFor(avail) : null;
       if (afterAvail) {
@@ -478,36 +526,26 @@ function createButtonUI(onClick: () => void) {
       }
       return null;
     }
-    // Detail popover / modal → BOTTOM of the OUTERMOST content list (after every
-    // section, including the guest list). Robust whether or not guests exist.
-    const dialog = document.querySelector<HTMLElement>('[role="dialog"]');
-    if (dialog) {
-      // Quick-create popover carries a "Save" (and usually "More options"). Sit
-      // inline right before it so we read as one of its action buttons — the same
-      // inline feel as the editor. A saved-event DETAIL popover has no "Save"
-      // (Edit/Delete instead), so this never fires there and we keep the row at the
-      // bottom of its content list.
-      const save = findButtonByText('save');
-      if (save && dialog.contains(save) && save.parentElement) {
-        const parent = save.parentElement;
-        return { insert: (el) => parent.insertBefore(el, save), inset: 0, inline: true };
-      }
-      const list = findContentList(dialog);
-      if (list) {
-        const ref = firstIconLedRow(list);
-        return { insert: (el) => list.appendChild(el), inset: ref ? rowInset(ref, list) : 0 };
-      }
-      // Fallback → bottom of the scrolling content.
-      const scope = scrollContainer(dialog) ?? dialog;
-      const l = mainVerticalList(scope) ?? scope;
-      return { insert: (el) => l.appendChild(el), inset: 0 };
-    }
+
+    // Detail / quick-create popover is handled by the docked footer overlay
+    // (mountDockedFooter, our own shadow DOM). findAnchor only serves the editor/page.
     return null;
   }
 
-  function ensureInjected(): boolean {
-    if (injected && injected.isConnected) return true; // still placed — skip the scan
-    const anchor = findAnchor();
+  function ensureInjected(surfaceEl: HTMLElement | null): boolean {
+    // Keep the button only if it's still placed AND still inside the CURRENT surface.
+    // The contains() check is essential: after Calendar re-renders, our button can be
+    // left attached to a stale/hidden subtree (isConnected stays true), which would
+    // otherwise read as "placed" forever and never recover. Re-place it when it has
+    // drifted out of the surface we're now decorating.
+    if (
+      injected &&
+      injected.isConnected &&
+      (!surfaceEl || surfaceEl.contains(injected))
+    ) {
+      return true;
+    }
+    const anchor = findAnchor(surfaceEl);
     if (!anchor) return false;
     removeInjected();
     ensureInjectedStyles();
@@ -536,11 +574,14 @@ function createButtonUI(onClick: () => void) {
     // it's redundant (auto-follow handles the viewed event), and it would flash
     // at the corner while a navigated page is still loading. So callers pass
     // false when the panel is open.
-    update(show: boolean, allowFab = true) {
+    update(show: boolean, allowFab = true, surfaceEl: HTMLElement | null = null) {
+      lastShow = show;
+      lastSurfaceEl = surfaceEl;
       clearTimeout(retryTimer);
       if (!show) {
         // Defer the hide: if the surface comes right back (hydration churn), the
         // next update(true) cancels this and the button never visibly disappears.
+        popover.hide();
         clearTimeout(hideTimer);
         hideTimer = setTimeout(() => {
           removeInjected();
@@ -549,6 +590,21 @@ function createButtonUI(onClick: () => void) {
         return;
       }
       clearTimeout(hideTimer); // surface is present → cancel any pending hide
+
+      // POPOVER → the settle-gated, skeleton-first footer row. It places a shimmer in
+      // the footer immediately, then swaps to the button once the popover stops mutating
+      // (load settled). The FAB only appears if no action bar can be found to anchor to.
+      if (surfaceEl && surfaceEl.matches?.('[role="dialog"]')) {
+        removeInjected();
+        // Popover → the docked footer overlay (our own DOM). It positions itself; no FAB
+        // (it appears on its own once the card's action row is laid out).
+        fab.setVisible(false);
+        popover.show(surfaceEl);
+        return;
+      }
+
+      // EDITOR / page → native inline button next to Save (stable; never had the bug).
+      popover.hide();
       // Try to inject now; if the anchor isn't in the DOM / laid out yet (Google
       // is still rendering the surface), keep retrying for a few seconds. The
       // MutationObserver covers DOM changes, but layout can settle — giving
@@ -556,7 +612,7 @@ function createButtonUI(onClick: () => void) {
       // anchor checks can miss that window. This retry guarantees we don't.
       let attempts = 0;
       const attempt = () => {
-        const placed = ensureInjected();
+        const placed = ensureInjected(surfaceEl);
         // Show the floating fallback only after a short grace period, so on a
         // normally-rendering surface the native button just appears — no flash
         // of the FAB getting replaced a moment later.
@@ -565,6 +621,22 @@ function createButtonUI(onClick: () => void) {
         retryTimer = setTimeout(attempt, 150);
       };
       attempt();
+    },
+
+    // Synchronous re-assert from the MutationObserver on every DOM change. POPOVER: tell
+    // the footer manager (re-anchor the row if a re-render detached it, and reset its
+    // settle timer). EDITOR: re-place the injected button if it was detached — in the
+    // SAME microtask, before paint, so it never visibly flickers.
+    keepAlive() {
+      if (!lastShow) return; // surface not shown → nothing to keep alive
+      const el = lastSurfaceEl;
+      if (el && (!el.isConnected || !isVisible(el))) return; // stale → let render() recompute
+      if (el && el.matches?.('[role="dialog"]')) {
+        popover.onMutation();
+        return;
+      }
+      if (injected && injected.isConnected && (!el || el.contains(injected))) return; // still placed
+      ensureInjected(el);
     },
   };
 }
@@ -799,6 +871,14 @@ function ensureInjectedStyles() {
     .auxilio-mv-btn:focus-visible{outline:2px solid #92288e;outline-offset:2px;}
     .auxilio-mv-btn[disabled]{opacity:.6;cursor:default;}
     .auxilio-mv-btn svg{width:18px;height:18px;flex:0 0 auto;}
+    /* Popover footer action: a divider then a FILLED brand button, so it reads as the
+       popover's primary action like the native RSVP buttons. */
+    .auxilio-mv-footer{box-sizing:border-box;display:flex;align-items:center;width:100%;
+      padding:12px 16px 14px;margin-top:4px;border-top:1px solid rgba(0,0,0,.12);}
+    .auxilio-mv-btn--filled{color:#fff;background:#92288e;border-color:transparent;
+      box-shadow:0 1px 2px rgba(0,0,0,.18);}
+    .auxilio-mv-btn--filled:hover{background:#85267f;box-shadow:0 1px 3px rgba(0,0,0,.28);}
+    .auxilio-mv-btn--filled:active{background:#73206e;}
   `;
   document.documentElement.appendChild(s);
 }
@@ -826,6 +906,144 @@ function buildInjectedRow(onClick: () => void, inset: number): HTMLElement {
   // surface; the button manages its own interactions (shieldInteractions).
   shieldPadding(row);
   return row;
+}
+
+/**
+ * In-flow popover footer: a full-width "Manage Visitors" row inserted into the footer
+ * section (`FKqJcf`, the action-row's parent), right above the Going?/Save row.
+ *
+ * Probe-proven (2026-06-29): a child of that container, placed AFTER the popover has
+ * finished loading, survives with ZERO strips. The earlier failures placed DURING the
+ * load (the content reconciliation then stripped it). So this is strictly SETTLE-GATED:
+ * we don't touch the DOM until the popover has been quiet for QUIET_MS *and* at least
+ * MIN_OPEN_MS has passed since it opened (past the late async render, e.g. People-API
+ * guest photos). A cheap synchronous re-add net then repairs any rare later strip,
+ * before paint, so it can never visibly disappear. Geometry/text only — no class coupling.
+ */
+function mountPopoverFooter(onClick: () => void) {
+  ensureInjectedStyles();
+  const row = document.createElement('div');
+  row.id = INJECT_ID;
+  row.className = 'auxilio-mv-footer';
+  const btn = makeNativeButton(onClick);
+  btn.classList.add('auxilio-mv-btn--filled');
+  row.appendChild(btn);
+  shieldPadding(row);
+
+  let dialog: HTMLElement | null = null;
+  let parent: HTMLElement | null = null; // the footer section (action-row's parent, FKqJcf)
+  let before: HTMLElement | null = null; // the action row (Going?/Save); we insert before it
+  let placedOnce = false;
+  let openAt = 0;
+  let lastMut = 0;
+  let settleTimer: ReturnType<typeof setTimeout> | undefined;
+  let burst = 0;
+  let burstStart = 0;
+  const MIN_OPEN_MS = 900; // give the popover time to finish its load reconciliation
+  const QUIET_MS = 450; // ...and only place after it's been quiet this long
+  const MAX_MS = 4500; // cap: place even if it never fully settles
+  const BURST_CAP = 80; // runaway guard for the re-add net
+  const MIN_W = 320; // a laid-out card row is ~card width; ignore 0/narrow (still loading)
+
+  /** The full-width action-bar row (Going?/Yes/No/Maybe or Save). Width-plateau climb. */
+  const findActionRow = (): HTMLElement | null => {
+    if (!dialog) return null;
+    const btns = Array.from(dialog.querySelectorAll<HTMLElement>('button,[role="button"]')).filter(
+      (b) => isVisible(b) && ['yes', 'no', 'maybe', 'save'].includes((b.textContent ?? '').trim().toLowerCase()),
+    );
+    if (!btns.length) return null;
+    let node: HTMLElement = btns[0];
+    for (let i = 0; i < 12 && node.parentElement && node.parentElement !== dialog; i++) {
+      const w = node.getBoundingClientRect().width;
+      const pw = node.parentElement.getBoundingClientRect().width;
+      if (pw <= w + 4) return node; // parent no wider → this is the full-width row
+      node = node.parentElement;
+    }
+    return node;
+  };
+
+  const targetValid = (): boolean =>
+    !!parent && parent.isConnected && !!before && before.parentElement === parent &&
+    before.getBoundingClientRect().width >= MIN_W;
+
+  const findTarget = (): boolean => {
+    if (targetValid()) return true; // cached spot still good (cheap)
+    const ar = findActionRow();
+    if (!ar || !ar.parentElement || ar.getBoundingClientRect().width < MIN_W) return false;
+    parent = ar.parentElement;
+    before = ar;
+    return true;
+  };
+
+  /** CHEAP: is the row exactly where we put it? Node-identity only — no layout. */
+  const isPlaced = (): boolean =>
+    row.isConnected && !!parent && !!before &&
+    before.parentElement === parent && row.parentElement === parent &&
+    row.nextElementSibling === before;
+
+  /** Place / re-place the row before the action row (synchronous, before paint). */
+  const insert = (): void => {
+    if (isPlaced()) return;
+    if (!findTarget()) return; // layout not ready / no action bar yet
+    const now = Date.now();
+    if (now - burstStart > 1000) { burstStart = now; burst = 0; }
+    if (burst >= BURST_CAP) return; // runaway guard → degrade, don't freeze
+    burst++;
+    parent!.insertBefore(row, before);
+    placedOnce = true;
+  };
+
+  /** Pre-placement only: wait until the popover is quiet AND old enough, then place once.
+   *  We deliberately do NOT touch the DOM during the load churn. */
+  const scheduleSettle = (): void => {
+    if (placedOnce) return;
+    clearTimeout(settleTimer);
+    const sinceOpen = Date.now() - openAt;
+    if (sinceOpen >= MAX_MS) { insert(); return; }
+    const wait = Math.max(QUIET_MS, MIN_OPEN_MS - sinceOpen);
+    settleTimer = setTimeout(() => {
+      if (placedOnce) return;
+      if (Date.now() - lastMut >= QUIET_MS && Date.now() - openAt >= MIN_OPEN_MS) insert();
+      else scheduleSettle();
+    }, wait);
+  };
+
+  return {
+    show(d: HTMLElement): void {
+      if (dialog !== d) {
+        dialog = d;
+        parent = null;
+        before = null;
+        placedOnce = false;
+        openAt = Date.now();
+        lastMut = Date.now();
+        row.remove();
+        scheduleSettle();
+      } else if (placedOnce && !isPlaced()) {
+        insert(); // re-place if a render between ticks dropped it
+      }
+    },
+    /** Synchronous, from the MutationObserver on every DOM change. Pre-settle: keep
+     *  deferring placement. After placed: re-add a stripped row instantly (before paint
+     *  → invisible). When already placed (the common case) this is one cheap check. */
+    onMutation(): void {
+      if (!dialog) return;
+      lastMut = Date.now();
+      if (placedOnce) {
+        if (!isPlaced()) insert();
+      } else {
+        scheduleSettle();
+      }
+    },
+    hide(): void {
+      row.remove();
+      dialog = null;
+      parent = null;
+      before = null;
+      placedOnce = false;
+      clearTimeout(settleTimer);
+    },
+  };
 }
 
 /** Inline button that sits in the editor / quick-create action bar, next to the
