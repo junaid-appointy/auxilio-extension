@@ -461,6 +461,23 @@ const USERS_SVG = `
 const LABEL = 'Manage Visitors';
 const INJECT_ID = 'auxilio-manage-visitors';
 
+// Detail-popover content row copy — mirrors Google's own rows (bold action + muted
+// description), e.g. "Take meeting notes / Start a new document to capture notes".
+const ROW_TITLE = 'Manage visitors';
+const ROW_SUB = 'Register guests and send entry passes';
+
+/** The Auxilio mark, flattened to a single brand-purple fill and self-contained (no
+ *  gradients/ids/<style> that could leak into or collide with the host page). Sized by
+ *  its container so it lines up with Google's own row icons. */
+// viewBox cropped to the mark's actual bounds (the source art has ~13px of dead margin
+// top/bottom that made the icon render small and high) so it fills its 20px box like
+// Google's own row icons.
+const AUXILIO_SVG = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="5 12 140 126" aria-hidden="true" focusable="false">
+  <path fill="#8B228C" d="m144 115-47.1-88.6c-3.8-7.4-10.8-13.4-21.3-13.4s-17.9 6.1-21.6 13.3l-47.8 87.7c-2.3 3.7-3.7 11.5 1.5 17.4s13 6.3 18 4.8 7.3-4.2 9.3-9.2l25.7-46.5c2.9-8.1 11.3-8.5 14.5-8.5 8 0 12.8 4.2 15.8 9.5l24.9 47.5c7.1 11.4 24.1 9.9 28.6-0.5 3.1-7.6 0.1-12.5-0.5-13.5z"/>
+  <path fill="#8B228C" d="m75.2 104c-8.5-0.1-15.2 6.5-16.2 14s3 18 16 18.5c11.2 0 16-7.5 16-16.5s-7.3-15.9-15.8-16z"/>
+</svg>`;
+
 /**
  * Button UI manager: injects a native-styled "Manage Visitors" button as a real,
  * full-width row in the surface — below the Availability/Visibility section on the
@@ -470,15 +487,18 @@ const INJECT_ID = 'auxilio-manage-visitors';
  */
 function createButtonUI(onClick: () => void) {
   const fab = mountFloating(onClick);
-  // Popover surface: an in-flow footer row inserted (settle-gated) into the Going? footer
-  // section. Probe-proven to survive once placed after the popover finishes loading.
-  const popover = mountPopoverFooter(onClick);
+  // Saved-event detail popover: a native-style row in the scrollable content list.
+  const popover = mountContentRow(onClick);
   let injected: HTMLElement | null = null;
   let retryTimer: ReturnType<typeof setTimeout> | undefined;
   // Last decision from update(), so keepAlive() can re-place the button synchronously
   // (flicker-free) when a Google re-render detaches it, without recomputing the surface.
   let lastShow = false;
   let lastSurfaceEl: HTMLElement | null = null;
+  // Which placement the current surface uses, decided once per update() so keepAlive()
+  // doesn't have to re-detect it on every mutation. 'row' = detail-popover content row;
+  // 'inline' = editor page or quick-create popover (inline button next to Save).
+  let surfaceMode: 'row' | 'inline' | null = null;
 
   // A clean injection anchor: where to drop the button + how far to indent it so
   // it lines up with the section's content column (past Google's icon gutter).
@@ -503,32 +523,33 @@ function createButtonUI(onClick: () => void) {
     const dialog =
       surfaceEl && surfaceEl.matches?.('[role="dialog"]') ? surfaceEl : null;
 
-    // Page surface (full-screen editor, or a url-eid view): an inline button right
-    // before the native "Save" in the action bar, else our own full-width row just
-    // BELOW the Availability/Visibility info section, else above Description.
-    if (!dialog) {
-      const save = findButtonByText('save');
-      const saveParent = save?.parentElement;
-      if (save && saveParent) {
-        return { insert: (el) => saveParent.insertBefore(el, save), inset: 0, inline: true };
-      }
-      const avail = findAvailabilityInfo();
-      const afterAvail = avail ? rowsListFor(avail) : null;
-      if (afterAvail) {
-        const { list, row } = afterAvail;
-        return { insert: (el) => list.insertBefore(el, row.nextSibling), inset: rowInset(row, list) };
-      }
-      const desc = findEditDescription();
-      const aboveDesc = desc ? rowsListFor(desc) : null;
-      if (aboveDesc) {
-        const { list, row } = aboveDesc;
-        return { insert: (el) => list.insertBefore(el, row), inset: rowInset(row, list) };
-      }
-      return null;
+    // Inline next to the native "Save" — both the full editor page AND the quick-create
+    // popover for an UNSAVED event (which carries "More options" + "Save"). Scope the
+    // search to the dialog when we're in one so we never grab a Save from elsewhere.
+    const save = findButtonByTextIn(dialog ?? document, 'save');
+    const saveParent = save?.parentElement;
+    if (save && saveParent) {
+      return { insert: (el) => saveParent.insertBefore(el, save), inset: 0, inline: true };
     }
 
-    // Detail / quick-create popover is handled by the docked footer overlay
-    // (mountDockedFooter, our own shadow DOM). findAnchor only serves the editor/page.
+    // A saved-event detail popover has no Save → its button is the Google-style content
+    // row (handled by mountContentRow), not an inline anchor.
+    if (dialog) return null;
+
+    // Page surface (full-screen editor, or a url-eid view): our own full-width row just
+    // BELOW the Availability/Visibility info section, else above Description.
+    const avail = findAvailabilityInfo();
+    const afterAvail = avail ? rowsListFor(avail) : null;
+    if (afterAvail) {
+      const { list, row } = afterAvail;
+      return { insert: (el) => list.insertBefore(el, row.nextSibling), inset: rowInset(row, list) };
+    }
+    const desc = findEditDescription();
+    const aboveDesc = desc ? rowsListFor(desc) : null;
+    if (aboveDesc) {
+      const { list, row } = aboveDesc;
+      return { insert: (el) => list.insertBefore(el, row), inset: rowInset(row, list) };
+    }
     return null;
   }
 
@@ -579,31 +600,36 @@ function createButtonUI(onClick: () => void) {
       lastSurfaceEl = surfaceEl;
       clearTimeout(retryTimer);
       if (!show) {
-        // Defer the hide: if the surface comes right back (hydration churn), the
-        // next update(true) cancels this and the button never visibly disappears.
-        popover.hide();
+        // Defer the hide: if the surface comes right back (hydration churn / a transient
+        // tick where readSurface can't see the dialog during the load reconciliation),
+        // the next update(true) cancels this and nothing visibly disappears. The popover
+        // row gets the SAME grace as the editor button.
         clearTimeout(hideTimer);
         hideTimer = setTimeout(() => {
+          surfaceMode = null;
           removeInjected();
           fab.setVisible(false);
+          popover.hide();
         }, HIDE_GRACE_MS);
         return;
       }
-      clearTimeout(hideTimer); // surface is present → cancel any pending hide
+      clearTimeout(hideTimer); // surface is present → cancel any pending hide (incl. popover)
 
-      // POPOVER → the settle-gated, skeleton-first footer row. It places a shimmer in
-      // the footer immediately, then swaps to the button once the popover stops mutating
-      // (load settled). The FAB only appears if no action bar can be found to anchor to.
-      if (surfaceEl && surfaceEl.matches?.('[role="dialog"]')) {
+      const dialog = surfaceEl && surfaceEl.matches?.('[role="dialog"]') ? surfaceEl : null;
+
+      // SAVED-EVENT DETAIL POPOVER (no native Save) → native-style row in the scrollable
+      // content list. Placed after the first-open storm, instant on re-open. No FAB.
+      if (dialog && !findButtonByTextIn(dialog, 'save')) {
+        surfaceMode = 'row';
         removeInjected();
-        // Popover → the docked footer overlay (our own DOM). It positions itself; no FAB
-        // (it appears on its own once the card's action row is laid out).
         fab.setVisible(false);
-        popover.show(surfaceEl);
+        popover.show(dialog);
         return;
       }
 
-      // EDITOR / page → native inline button next to Save (stable; never had the bug).
+      // EDITOR PAGE or QUICK-CREATE POPOVER (unsaved event, has Save) → native inline
+      // button next to More options / Save (stable; never had the popover bug).
+      surfaceMode = 'inline';
       popover.hide();
       // Try to inject now; if the anchor isn't in the DOM / laid out yet (Google
       // is still rendering the surface), keep retrying for a few seconds. The
@@ -624,14 +650,15 @@ function createButtonUI(onClick: () => void) {
     },
 
     // Synchronous re-assert from the MutationObserver on every DOM change. POPOVER: tell
-    // the footer manager (re-anchor the row if a re-render detached it, and reset its
-    // settle timer). EDITOR: re-place the injected button if it was detached — in the
-    // SAME microtask, before paint, so it never visibly flickers.
+    // the content-row manager (re-add the row if a re-render removed it). EDITOR: re-place
+    // the injected button if it was detached — in the SAME microtask, before paint.
     keepAlive() {
       if (!lastShow) return; // surface not shown → nothing to keep alive
       const el = lastSurfaceEl;
       if (el && (!el.isConnected || !isVisible(el))) return; // stale → let render() recompute
-      if (el && el.matches?.('[role="dialog"]')) {
+      // Detail-popover content row: let the row manager repair it (cheap node-identity
+      // check; no per-mutation Save lookup — surfaceMode was decided in update()).
+      if (surfaceMode === 'row') {
         popover.onMutation();
         return;
       }
@@ -652,19 +679,28 @@ function createButtonUI(onClick: () => void) {
  */
 function isEventDialog(dialog: HTMLElement): boolean {
   if (dialog.querySelector('[data-eventid]')) return true;
+  // A title input means this is an event create/edit surface (the quick-create popover
+  // for a brand-new, unsaved event — no eid/magic address yet). Confirmation dialogs
+  // ("Delete?", "Send update emails?") have no title input, so this stays specific.
+  if (dialog.querySelector('input[aria-label*="title" i], input[placeholder*="title" i]')) return true;
   const text = (dialog.innerText || '').toLowerCase();
   if (MAGIC_ADDRESS && text.includes(MAGIC_ADDRESS)) return true;
   return !!findContentList(dialog);
 }
 
-/** Find a clickable element whose visible text matches (case-insensitive). */
-function findButtonByText(text: string): HTMLElement | null {
+/** Find a VISIBLE clickable element within `scope` whose visible text matches
+ *  (case-insensitive). */
+function findButtonByTextIn(scope: ParentNode, text: string): HTMLElement | null {
   const wanted = text.toLowerCase();
-  const els = document.querySelectorAll<HTMLElement>('button,[role="button"]');
-  for (const el of els) {
-    if ((el.textContent ?? '').trim().toLowerCase() === wanted) return el;
+  for (const el of scope.querySelectorAll<HTMLElement>('button,[role="button"]')) {
+    if ((el.textContent ?? '').trim().toLowerCase() === wanted && isVisible(el)) return el;
   }
   return null;
+}
+
+/** Find a clickable element whose visible text matches (case-insensitive), document-wide. */
+function findButtonByText(text: string): HTMLElement | null {
+  return findButtonByTextIn(document, text);
 }
 
 const isVisible = (el: HTMLElement) => el.offsetParent !== null || el.getClientRects().length > 0;
@@ -857,7 +893,24 @@ function ensureInjectedStyles() {
   const s = document.createElement('style');
   s.id = STYLE_ID;
   s.textContent = `
-    .auxilio-mv-row{box-sizing:border-box;display:flex;align-items:center;width:100%;padding:8px 0;}
+    .auxilio-mv-row{
+      box-sizing:border-box;display:flex;align-items:flex-start;width:100%;
+      padding:6px 16px 6px 28px;
+      animation:auxilio-mv-fade 220ms cubic-bezier(.2,0,0,1) both;
+    }
+    .auxilio-mv-row-icon{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;margin-right:16px;}
+    .auxilio-mv-row-icon svg{width:100%;height:100%;display:block;}
+    .auxilio-mv-row-text{display:flex;flex-direction:column;gap:1px;min-width:0;}
+    .auxilio-mv-row-title{
+      align-self:flex-start;font-family:'Google Sans','Roboto',Arial,sans-serif;
+      font-size:14px;line-height:20px;font-weight:500;cursor:pointer;border-radius:4px;
+    }
+    .auxilio-mv-row-title:hover{text-decoration:underline;}
+    .auxilio-mv-row-title:focus-visible{outline:2px solid #92288e;outline-offset:2px;}
+    .auxilio-mv-row[aria-busy="true"] .auxilio-mv-row-title{opacity:.6;cursor:default;text-decoration:none;}
+    .auxilio-mv-row-sub{font-family:'Roboto',Arial,sans-serif;font-size:12px;line-height:16px;font-weight:400;opacity:.72;}
+    @keyframes auxilio-mv-fade{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}
+    @media (prefers-reduced-motion:reduce){.auxilio-mv-row{animation:none;}}
     .auxilio-mv-btn{
       box-sizing:border-box;display:inline-flex;align-items:center;gap:8px;
       font-family:'Google Sans','Roboto',Arial,sans-serif;font-size:14px;font-weight:500;
@@ -871,14 +924,25 @@ function ensureInjectedStyles() {
     .auxilio-mv-btn:focus-visible{outline:2px solid #92288e;outline-offset:2px;}
     .auxilio-mv-btn[disabled]{opacity:.6;cursor:default;}
     .auxilio-mv-btn svg{width:18px;height:18px;flex:0 0 auto;}
-    /* Popover footer action: a divider then a FILLED brand button, so it reads as the
-       popover's primary action like the native RSVP buttons. */
-    .auxilio-mv-footer{box-sizing:border-box;display:flex;align-items:center;width:100%;
-      padding:12px 16px 14px;margin-top:4px;border-top:1px solid rgba(0,0,0,.12);}
-    .auxilio-mv-btn--filled{color:#fff;background:#92288e;border-color:transparent;
-      box-shadow:0 1px 2px rgba(0,0,0,.18);}
-    .auxilio-mv-btn--filled:hover{background:#85267f;box-shadow:0 1px 3px rgba(0,0,0,.28);}
-    .auxilio-mv-btn--filled:active{background:#73206e;}
+    /* Icon Button (Header) */
+    .auxilio-mv-icon-wrapper { position: relative; display: inline-flex; margin-right: 4px; }
+    .auxilio-mv-icon-btn {
+      box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;
+      width:40px;height:40px;border-radius:50%;background:transparent;
+      color:#92288e;border:none;cursor:pointer;margin:4px;
+      transition:background-color 120ms ease;
+    }
+    .auxilio-mv-icon-btn:hover{background:rgba(146,40,142,.08);}
+    .auxilio-mv-icon-btn:active{background:rgba(146,40,142,.12);}
+    .auxilio-mv-icon-btn:focus-visible{outline:2px solid #92288e;outline-offset:2px;}
+    .auxilio-mv-icon-btn svg{width:20px;height:20px;flex:0 0 auto;}
+    .auxilio-mv-icon-tooltip { 
+      position: absolute; bottom: -30px; left: 50%; transform: translateX(-50%);
+      background: rgba(60,64,67,0.9); color: white; padding: 6px 8px; border-radius: 4px;
+      font-size: 12px; font-family: Roboto, sans-serif; white-space: nowrap; font-weight: 500;
+      opacity: 0; pointer-events: none; transition: opacity 100ms; z-index: 1000;
+    }
+    .auxilio-mv-icon-wrapper:hover .auxilio-mv-icon-tooltip { opacity: 1; transition-delay: 350ms; }
   `;
   document.documentElement.appendChild(s);
 }
@@ -908,129 +972,276 @@ function buildInjectedRow(onClick: () => void, inset: number): HTMLElement {
   return row;
 }
 
+/** Event ids whose popover we've already placed into once this page session. Google
+ *  reconciles a given event's popover only on its FIRST open per session, so a remembered
+ *  event re-opens with its content already present → we can place instantly, no delay. */
+const seenEventPopovers = new Set<string>();
+
+/** Populate `row` with a native-style Calendar content row: an Auxilio icon in the
+ *  left gutter, then a bold action title with a muted description under it (mirroring
+ *  rows like "Take meeting notes / Start a new document to capture notes"). Only the
+ *  TITLE is the control (like Google's "Join with Google Meet" link); the icon and the
+ *  description are inert. Returns the title element — our integrity marker. */
+function buildContentRowInner(row: HTMLElement): HTMLElement {
+  row.textContent = '';
+  const icon = document.createElement('span');
+  icon.className = 'auxilio-mv-row-icon';
+  icon.setAttribute('aria-hidden', 'true');
+  icon.innerHTML = AUXILIO_SVG;
+  const text = document.createElement('span');
+  text.className = 'auxilio-mv-row-text';
+  const title = document.createElement('span');
+  title.className = 'auxilio-mv-row-title';
+  title.textContent = ROW_TITLE;
+  title.setAttribute('role', 'button');
+  title.tabIndex = 0;
+  const sub = document.createElement('span');
+  sub.className = 'auxilio-mv-row-sub';
+  sub.textContent = ROW_SUB;
+  text.append(title, sub);
+  row.append(icon, text);
+  return title;
+}
+
+/** Match our row to a native sibling row: the same padding (the real left gutter),
+ *  the same icon size and icon→text gap so our icon lines up with Google's, the same
+ *  icon vertical offset, and the host theme's text color (so it reads identically in
+ *  light and dark). Computed-style/geometry only — measured ONCE at placement, never
+ *  per mutation. Falls back to sane defaults when no reference row is available. */
+function styleContentRowLikeNative(row: HTMLElement, list: HTMLElement): void {
+  const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
+  const icon = row.querySelector<HTMLElement>('.auxilio-mv-row-icon');
+  const text = row.querySelector<HTMLElement>('.auxilio-mv-row-text');
+  const title = row.querySelector<HTMLElement>('.auxilio-mv-row-title');
+  const sub = row.querySelector<HTMLElement>('.auxilio-mv-row-sub');
+  const ICON_SIZE = 20; // fixed icon box
+  const PAD_LEFT = 28;  // fixed padding from left wall
+  const ICON_GAP = 20;  // fixed gap between icon and text
+
+  const ref = firstIconLedRow(list);
+  if (!ref) {
+    row.style.padding = `6px 16px 6px ${PAD_LEFT}px`;
+    if (icon) { icon.style.width = `${ICON_SIZE}px`; icon.style.height = `${ICON_SIZE}px`; icon.style.marginRight = `${ICON_GAP}px`; }
+    if (title) title.style.fontWeight = 'bold';
+    return;
+  }
+
+  // 1. Copy native vertical/right padding programmatically (style + geometry), but enforce fixed 28px left padding
+  const rs = getComputedStyle(ref);
+  const refText = ref.children[1] as HTMLElement | null;
+  const rts = refText ? getComputedStyle(refText) : null;
+  const refTitle = refText?.children[0] as HTMLElement | null;
+  const refSub = refText?.children[1] as HTMLElement | null;
+
+  let padTop = parseFloat(rs.paddingTop) || (rts ? parseFloat(rts.paddingTop) : 0) || (rts ? parseFloat(rts.marginTop) : 0);
+  if (!padTop && refTitle) {
+    padTop = Math.max(0, Math.round(refTitle.getBoundingClientRect().top - ref.getBoundingClientRect().top));
+  }
+  padTop = padTop > 0 ? padTop : 6;
+
+  let padBottom = parseFloat(rs.paddingBottom) || (rts ? parseFloat(rts.paddingBottom) : 0) || (rts ? parseFloat(rts.marginBottom) : 0);
+  if (!padBottom && refText) {
+    const lastEl = refText.lastElementChild || refText;
+    padBottom = Math.max(0, Math.round(ref.getBoundingClientRect().bottom - lastEl.getBoundingClientRect().bottom));
+  }
+  padBottom = padBottom > 0 ? padBottom : 6;
+
+  let padRight = parseFloat(rs.paddingRight) || (rts ? parseFloat(rts.paddingRight) : 0);
+  padRight = padRight > 0 ? padRight : 16;
+
+  row.style.padding = `${padTop}px ${padRight}px ${padBottom}px ${PAD_LEFT}px`;
+
+  // 2. Enforce fixed 20x20 icon size and 20px right margin, programmatically align top offset
+  const rowRect = ref.getBoundingClientRect();
+  const refIcon = ref.firstElementChild as HTMLElement | null;
+  const realIcon = refIcon?.querySelector<HTMLElement>('svg, img, i') || refIcon;
+  const iconRect = realIcon?.getBoundingClientRect();
+
+  if (icon) {
+    const mt = iconRect ? Math.max(0, Math.round(iconRect.top - rowRect.top - padTop)) : 0;
+    icon.style.width = `${ICON_SIZE}px`;
+    icon.style.height = `${ICON_SIZE}px`;
+    icon.style.marginRight = `${ICON_GAP}px`;
+    icon.style.marginTop = `${clamp(mt, 0, 6)}px`;
+  }
+
+  // 3. Programmatically pull gap between title and subtitle
+
+  if (text && refTitle && refSub) {
+    const titleRect = refTitle.getBoundingClientRect();
+    const subRect = refSub.getBoundingClientRect();
+    const subGap = Math.max(0, Math.round(subRect.top - titleRect.bottom));
+    text.style.gap = `${clamp(subGap, 1, 12)}px`;
+  }
+
+  // 4. Programmatically pull link color & font sizes, but enforce bold title
+  const color = rs.color; // primary text color for the current theme
+  const link = list.closest('[role="dialog"]')?.querySelector<HTMLElement>('a[href], [role="link"]');
+  const linkColor = link ? getComputedStyle(link).color : '';
+
+  if (title) {
+    title.style.color = linkColor || (refTitle ? getComputedStyle(refTitle).color : color);
+    if (refTitle) {
+      const ts = getComputedStyle(refTitle);
+      title.style.fontSize = ts.fontSize;
+      title.style.lineHeight = ts.lineHeight;
+    }
+    title.style.fontWeight = 'bold'; // explicitly enforced per user request
+  }
+
+  if (sub) {
+    sub.style.color = refSub ? getComputedStyle(refSub).color : color;
+    if (refSub) {
+      const ss = getComputedStyle(refSub);
+      sub.style.fontSize = ss.fontSize;
+      sub.style.lineHeight = ss.lineHeight;
+      sub.style.fontWeight = ss.fontWeight;
+    }
+  }
+}
+
 /**
- * In-flow popover footer: a full-width "Manage Visitors" row inserted into the footer
- * section (`FKqJcf`, the action-row's parent), right above the Going?/Save row.
+ * In-flow "Manage Visitors" row at the bottom of the saved-event detail popover's
+ * scrollable content list — styled to read as one of Google's own rows (Auxilio icon +
+ * bold action + muted description), aligned to the native gutter and theme colors.
  *
- * Probe-proven (2026-06-29): a child of that container, placed AFTER the popover has
- * finished loading, survives with ZERO strips. The earlier failures placed DURING the
- * load (the content reconciliation then stripped it). So this is strictly SETTLE-GATED:
- * we don't touch the DOM until the popover has been quiet for QUIET_MS *and* at least
- * MIN_OPEN_MS has passed since it opened (past the late async render, e.g. People-API
- * guest photos). A cheap synchronous re-add net then repairs any rare later strip,
- * before paint, so it can never visibly disappear. Geometry/text only — no class coupling.
+ * Probe-proven (2026-06-29): Google reconciles the entire popover ONCE per page session on
+ * an event's first open (~750 mutations, a storm peaking ~480ms). That storm wipes any node
+ * placed before it — in the header, content list, AND footer alike — so survival is about
+ * TIMING, not location. On a re-open of the same event there is no storm (~33 harmless
+ * mutations) and a node placed immediately survives untouched. Two failure modes were seen:
+ * the node is removed (STRIPPED) or kept-but-its-contents-replaced (OVERWRITTEN — the
+ * keyless content list reusing our node by position).
+ *
+ * Strategy:
+ *  - first open of an event   → settle-gate: place ONCE after the storm goes quiet;
+ *  - re-open of a known event → place immediately, no delay (seenEventPopovers);
+ *  - re-add net checks INTEGRITY (still connected AND still holds our title), so it repairs
+ *    both an overwrite and a strip.
+ * The content list, gutter and colors come from Google's class-free row signals
+ * (findContentList / firstIconLedRow / firstTextLeft) — no CSS-class coupling.
  */
-function mountPopoverFooter(onClick: () => void) {
+function mountContentRow(onClick: () => void) {
   ensureInjectedStyles();
   const row = document.createElement('div');
   row.id = INJECT_ID;
-  row.className = 'auxilio-mv-footer';
-  const btn = makeNativeButton(onClick);
-  btn.classList.add('auxilio-mv-btn--filled');
-  row.appendChild(btn);
-  shieldPadding(row);
+  row.className = 'auxilio-mv-row';
+  let title = buildContentRowInner(row);
+
+  // ONLY the title is the control (like Google's "Join with Google Meet" link). Activation
+  // (pointer + keyboard) lives on the title, reading the LIVE title so a rebuild after an
+  // overwrite stays wired. Inline "Opening…" feedback on the title.
+  let firing = false;
+  const activate = async (e?: Event) => {
+    e?.stopPropagation(); // our action only — never bubble to Google's modal
+    if (firing) return;
+    firing = true;
+    row.setAttribute('aria-busy', 'true');
+    const prev = title.textContent;
+    title.textContent = 'Opening…';
+    try { await onClick(); }
+    finally { title.textContent = prev; row.removeAttribute('aria-busy'); firing = false; }
+  };
+  // Delegate from the row (capture) so a rebuilt title needs no re-binding. The title
+  // activates; clicks anywhere else on the row (icon, description, padding) are swallowed
+  // so they can't dismiss Google's popover, but do nothing.
+  const onRow = (e: Event) => {
+    if ((e.type === 'pointerup' || e.type === 'click') && title.contains(e.target as Node)) {
+      activate(e);
+      return;
+    }
+    e.stopPropagation(); // swallow everything else (incl. pointerdown on the title) so it can't dismiss the popover
+  };
+  for (const type of ['pointerup', 'click', 'pointerdown', 'mousedown', 'touchstart'] as const) {
+    row.addEventListener(type, onRow, true);
+  }
+  row.addEventListener('keydown', (e) => {
+    if ((e.key === 'Enter' || e.key === ' ') && title.contains(e.target as Node)) {
+      e.preventDefault();
+      activate(e);
+    }
+  });
 
   let dialog: HTMLElement | null = null;
-  let parent: HTMLElement | null = null; // the footer section (action-row's parent, FKqJcf)
-  let before: HTMLElement | null = null; // the action row (Going?/Save); we insert before it
-  let placedOnce = false;
+  let eventId = '';
+  let list: HTMLElement | null = null; // the scrollable content list
+  let placed = false;
   let openAt = 0;
   let lastMut = 0;
   let settleTimer: ReturnType<typeof setTimeout> | undefined;
   let burst = 0;
   let burstStart = 0;
-  const MIN_OPEN_MS = 900; // give the popover time to finish its load reconciliation
-  const QUIET_MS = 450; // ...and only place after it's been quiet this long
-  const MAX_MS = 4500; // cap: place even if it never fully settles
-  const BURST_CAP = 80; // runaway guard for the re-add net
-  const MIN_W = 320; // a laid-out card row is ~card width; ignore 0/narrow (still loading)
+  const MIN_OPEN_MS = 800; // first open: let the reconciliation storm pass before placing
+  const QUIET_MS = 400; // ...and only place after it's been quiet this long
+  const MAX_MS = 4000; // cap: place even if it never fully settles
+  const BURST_CAP = 80;
 
-  /** The full-width action-bar row (Going?/Yes/No/Maybe or Save). Width-plateau climb. */
-  const findActionRow = (): HTMLElement | null => {
-    if (!dialog) return null;
-    const btns = Array.from(dialog.querySelectorAll<HTMLElement>('button,[role="button"]')).filter(
-      (b) => isVisible(b) && ['yes', 'no', 'maybe', 'save'].includes((b.textContent ?? '').trim().toLowerCase()),
-    );
-    if (!btns.length) return null;
-    let node: HTMLElement = btns[0];
-    for (let i = 0; i < 12 && node.parentElement && node.parentElement !== dialog; i++) {
-      const w = node.getBoundingClientRect().width;
-      const pw = node.parentElement.getBoundingClientRect().width;
-      if (pw <= w + 4) return node; // parent no wider → this is the full-width row
-      node = node.parentElement;
-    }
-    return node;
+  const readEventId = (d: HTMLElement): string =>
+    d.querySelector('[data-eventid]')?.getAttribute('data-eventid') ?? '';
+
+  /** Healthy = our row is connected AND still carries our title (not overwritten). */
+  const healthy = (): boolean => row.isConnected && row.contains(title);
+
+  /** Rebuild our content if the keyless list reused our node and replaced its contents. */
+  const repair = (): void => {
+    if (row.contains(title)) return;
+    title = buildContentRowInner(row);
   };
 
-  const targetValid = (): boolean =>
-    !!parent && parent.isConnected && !!before && before.parentElement === parent &&
-    before.getBoundingClientRect().width >= MIN_W;
-
-  const findTarget = (): boolean => {
-    if (targetValid()) return true; // cached spot still good (cheap)
-    const ar = findActionRow();
-    if (!ar || !ar.parentElement || ar.getBoundingClientRect().width < MIN_W) return false;
-    parent = ar.parentElement;
-    before = ar;
-    return true;
-  };
-
-  /** CHEAP: is the row exactly where we put it? Node-identity only — no layout. */
-  const isPlaced = (): boolean =>
-    row.isConnected && !!parent && !!before &&
-    before.parentElement === parent && row.parentElement === parent &&
-    row.nextElementSibling === before;
-
-  /** Place / re-place the row before the action row (synchronous, before paint). */
+  /** Place (or repair) the row at the bottom of the content list, styled like a native
+   *  row. Synchronous, before paint. */
   const insert = (): void => {
-    if (isPlaced()) return;
-    if (!findTarget()) return; // layout not ready / no action bar yet
+    if (healthy()) return;
+    if (!list || !list.isConnected) list = dialog ? findContentList(dialog) : null;
+    if (!list) return; // content not ready yet
     const now = Date.now();
     if (now - burstStart > 1000) { burstStart = now; burst = 0; }
     if (burst >= BURST_CAP) return; // runaway guard → degrade, don't freeze
     burst++;
-    parent!.insertBefore(row, before);
-    placedOnce = true;
+    repair();
+    styleContentRowLikeNative(row, list);
+    list.appendChild(row); // appendChild also moves it to the end if already present
+    placed = true;
+    if (eventId) seenEventPopovers.add(eventId);
   };
 
-  /** Pre-placement only: wait until the popover is quiet AND old enough, then place once.
-   *  We deliberately do NOT touch the DOM during the load churn. */
+  /** Place ONCE, after the first-open storm settles — never during the churn. */
   const scheduleSettle = (): void => {
-    if (placedOnce) return;
+    if (placed) return;
     clearTimeout(settleTimer);
     const sinceOpen = Date.now() - openAt;
     if (sinceOpen >= MAX_MS) { insert(); return; }
-    const wait = Math.max(QUIET_MS, MIN_OPEN_MS - sinceOpen);
     settleTimer = setTimeout(() => {
-      if (placedOnce) return;
+      if (placed) return;
       if (Date.now() - lastMut >= QUIET_MS && Date.now() - openAt >= MIN_OPEN_MS) insert();
       else scheduleSettle();
-    }, wait);
+    }, Math.max(QUIET_MS, MIN_OPEN_MS - sinceOpen));
   };
 
   return {
     show(d: HTMLElement): void {
       if (dialog !== d) {
         dialog = d;
-        parent = null;
-        before = null;
-        placedOnce = false;
+        eventId = readEventId(d);
+        list = null;
+        placed = false;
         openAt = Date.now();
         lastMut = Date.now();
         row.remove();
-        scheduleSettle();
-      } else if (placedOnce && !isPlaced()) {
-        insert(); // re-place if a render between ticks dropped it
+        clearTimeout(settleTimer);
+        if (eventId && seenEventPopovers.has(eventId)) insert(); // re-open: no storm → place now
+        if (!placed) scheduleSettle(); // first open (or an instant miss): wait out the storm
+      } else if (placed && !healthy()) {
+        insert(); // re-place/repair only if genuinely lost
       }
     },
     /** Synchronous, from the MutationObserver on every DOM change. Pre-settle: keep
-     *  deferring placement. After placed: re-add a stripped row instantly (before paint
-     *  → invisible). When already placed (the common case) this is one cheap check. */
+     *  deferring placement. After placed: repair only if stripped or overwritten. */
     onMutation(): void {
       if (!dialog) return;
       lastMut = Date.now();
-      if (placedOnce) {
-        if (!isPlaced()) insert();
+      if (placed) {
+        if (!healthy()) insert();
       } else {
         scheduleSettle();
       }
@@ -1038,9 +1249,8 @@ function mountPopoverFooter(onClick: () => void) {
     hide(): void {
       row.remove();
       dialog = null;
-      parent = null;
-      before = null;
-      placedOnce = false;
+      list = null;
+      placed = false;
       clearTimeout(settleTimer);
     },
   };
