@@ -1,0 +1,51 @@
+{
+  "cli_version": "0.7.6",
+  "checkpoint_id": "0a486e3dd7f6",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 36,
+  "files_touched": [
+    ".gitignore",
+    "PRIVACY_POLICY.md",
+    "auxilio-visitor-share.zip",
+    "auxilio-visitor/assets/global-Bg4Tzvqc.css",
+    "auxilio-visitor/background.js",
+    "auxilio-visitor/chunks/global-CfWv9_A7.js",
+    "auxilio-visitor/chunks/options-CZkJ7oGK.js",
+    "auxilio-visitor/chunks/sidepanel-v2O5bqD3.js",
+    "auxilio-visitor/content-scripts/calendar.js",
+    "auxilio-visitor/icon/128.png",
+    "auxilio-visitor/icon/16.png",
+    "auxilio-visitor/icon/32.png",
+    "auxilio-visitor/icon/48.png",
+    "auxilio-visitor/icon/96.png",
+    "auxilio-visitor/icon/Auxilio-vector-logo.svg",
+    "auxilio-visitor/manifest.json",
+    "auxilio-visitor/options.html",
+    "auxilio-visitor/sidepanel.html",
+    "entrypoints/background.ts",
+    "entrypoints/calendar.content.ts",
+    "features/visit/VisitPanel.tsx",
+    "features/visit/hooks.ts",
+    "lib/calendar-sync.ts",
+    "lib/calendar.ts",
+    "lib/messaging.ts",
+    "package.json",
+    "wxt.config.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0a/486e3dd7f6/0/metadata.json",
+      "transcript": "/0a/486e3dd7f6/0/full.jsonl",
+      "content_hash": "/0a/486e3dd7f6/0/content_hash.txt",
+      "prompt": "/0a/486e3dd7f6/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 18893,
+    "cache_creation_tokens": 3235124,
+    "cache_read_tokens": 138937503,
+    "output_tokens": 664321,
+    "api_call_count": 274
+  }
+}

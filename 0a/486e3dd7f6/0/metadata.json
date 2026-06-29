@@ -1,0 +1,330 @@
+{
+  "cli_version": "0.7.6",
+  "checkpoint_id": "0a486e3dd7f6",
+  "session_id": "1ee62b17-aaf6-40ca-8d8f-460067cf81e8",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-29T04:24:48.187874Z",
+  "branch": "main",
+  "checkpoints_count": 36,
+  "save_step_count": 36,
+  "files_touched": [
+    ".gitignore",
+    "PRIVACY_POLICY.md",
+    "auxilio-visitor-share.zip",
+    "auxilio-visitor/assets/global-Bg4Tzvqc.css",
+    "auxilio-visitor/background.js",
+    "auxilio-visitor/chunks/global-CfWv9_A7.js",
+    "auxilio-visitor/chunks/options-CZkJ7oGK.js",
+    "auxilio-visitor/chunks/sidepanel-v2O5bqD3.js",
+    "auxilio-visitor/content-scripts/calendar.js",
+    "auxilio-visitor/icon/128.png",
+    "auxilio-visitor/icon/16.png",
+    "auxilio-visitor/icon/32.png",
+    "auxilio-visitor/icon/48.png",
+    "auxilio-visitor/icon/96.png",
+    "auxilio-visitor/icon/Auxilio-vector-logo.svg",
+    "auxilio-visitor/manifest.json",
+    "auxilio-visitor/options.html",
+    "auxilio-visitor/sidepanel.html",
+    "entrypoints/background.ts",
+    "entrypoints/calendar.content.ts",
+    "features/visit/VisitPanel.tsx",
+    "features/visit/hooks.ts",
+    "lib/calendar-sync.ts",
+    "lib/calendar.ts",
+    "lib/messaging.ts",
+    "package.json",
+    "wxt.config.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "",
+  "turn_id": "ee99e0d874c2",
+  "token_usage": {
+    "input_tokens": 18893,
+    "cache_creation_tokens": 3235124,
+    "cache_read_tokens": 138937503,
+    "output_tokens": 664321,
+    "api_call_count": 274
+  },
+  "session_metrics": {
+    "turn_count": 36
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-29T04:24:47.9685Z",
+    "agent_lines": 591,
+    "agent_removed": 68,
+    "human_added": 31,
+    "human_modified": 66,
+    "human_removed": 0,
+    "total_committed": 647,
+    "total_lines_changed": 756,
+    "agent_percentage": 87.16931216931218,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 330,
+      "agent_lines_removed": 16
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 366,
+      "agent_lines_removed": 19
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 412,
+      "agent_lines_removed": 48
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 430,
+      "agent_lines_removed": 52
+    },
+    {
+      "checkpoint_number": 6,
+      "user_lines_added": 4,
+      "user_lines_removed": 0,
+      "agent_lines_added": 481,
+      "agent_lines_removed": 90,
+      "user_added_per_file": {
+        "entrypoints/calendar.content.ts": 4
+      }
+    },
+    {
+      "checkpoint_number": 7,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 508,
+      "agent_lines_removed": 90
+    },
+    {
+      "checkpoint_number": 8,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 516,
+      "agent_lines_removed": 90
+    },
+    {
+      "checkpoint_number": 9,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 516,
+      "agent_lines_removed": 90
+    },
+    {
+      "checkpoint_number": 10,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 516,
+      "agent_lines_removed": 90
+    },
+    {
+      "checkpoint_number": 11,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 536,
+      "agent_lines_removed": 91
+    },
+    {
+      "checkpoint_number": 12,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 536,
+      "agent_lines_removed": 91
+    },
+    {
+      "checkpoint_number": 13,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 575,
+      "agent_lines_removed": 93
+    },
+    {
+      "checkpoint_number": 14,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 574,
+      "agent_lines_removed": 93
+    },
+    {
+      "checkpoint_number": 15,
+      "user_lines_added": 2,
+      "user_lines_removed": 0,
+      "agent_lines_added": 584,
+      "agent_lines_removed": 91,
+      "user_added_per_file": {
+        "entrypoints/calendar.content.ts": 2
+      }
+    },
+    {
+      "checkpoint_number": 16,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 681,
+      "agent_lines_removed": 91
+    },
+    {
+      "checkpoint_number": 17,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 681,
+      "agent_lines_removed": 91
+    },
+    {
+      "checkpoint_number": 18,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 681,
+      "agent_lines_removed": 91
+    },
+    {
+      "checkpoint_number": 19,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 573,
+      "agent_lines_removed": 93
+    },
+    {
+      "checkpoint_number": 20,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 573,
+      "agent_lines_removed": 93
+    },
+    {
+      "checkpoint_number": 21,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 650,
+      "agent_lines_removed": 92
+    },
+    {
+      "checkpoint_number": 22,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 671,
+      "agent_lines_removed": 92
+    },
+    {
+      "checkpoint_number": 23,
+      "user_lines_added": 56,
+      "user_lines_removed": 24,
+      "agent_lines_added": 671,
+      "agent_lines_removed": 92,
+      "user_added_per_file": {
+        "entrypoints/calendar.content.ts": 56
+      },
+      "user_removed_per_file": {
+        "entrypoints/calendar.content.ts": 24
+      }
+    },
+    {
+      "checkpoint_number": 24,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 703,
+      "agent_lines_removed": 92
+    },
+    {
+      "checkpoint_number": 25,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 685,
+      "agent_lines_removed": 92
+    },
+    {
+      "checkpoint_number": 26,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 650,
+      "agent_lines_removed": 92
+    },
+    {
+      "checkpoint_number": 27,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 650,
+      "agent_lines_removed": 92
+    },
+    {
+      "checkpoint_number": 28,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 650,
+      "agent_lines_removed": 92
+    },
+    {
+      "checkpoint_number": 29,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 650,
+      "agent_lines_removed": 92
+    },
+    {
+      "checkpoint_number": 30,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 668,
+      "agent_lines_removed": 92
+    },
+    {
+      "checkpoint_number": 31,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 668,
+      "agent_lines_removed": 92
+    },
+    {
+      "checkpoint_number": 32,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 668,
+      "agent_lines_removed": 92
+    },
+    {
+      "checkpoint_number": 33,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 668,
+      "agent_lines_removed": 92
+    },
+    {
+      "checkpoint_number": 34,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 714,
+      "agent_lines_removed": 92
+    },
+    {
+      "checkpoint_number": 35,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 727,
+      "agent_lines_removed": 95
+    },
+    {
+      "checkpoint_number": 36,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 729,
+      "agent_lines_removed": 95
+    }
+  ]
+}
