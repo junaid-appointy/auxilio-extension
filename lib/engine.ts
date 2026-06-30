@@ -112,6 +112,18 @@ export const engine = {
       { iCalUid, invitationId },
     ),
 
+  /** Cancel EVERY active pass for one event in a single call. Used by the host's
+   *  explicit "Cancel all passes" AND by the background safety net when a deleted
+   *  event would otherwise leave live passes (no server-side OAuth watch). Idempotent
+   *  on the engine — already-cancelled passes are skipped (no double notice). */
+  cancelEvent: (idToken: string, iCalUid: string) =>
+    call<{ iCalUid: string; cancelled: number; activeCount: number }>(
+      'cancel-event',
+      'POST',
+      idToken,
+      { iCalUid },
+    ),
+
   connectCalendar: (idToken: string, code: string, redirectUri: string) =>
     call<{ connected: boolean }>('connect-calendar', 'POST', idToken, { code, redirectUri }),
 };

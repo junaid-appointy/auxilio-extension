@@ -55,7 +55,10 @@ export default defineConfig({
     name: 'Auxilio Visitor',
     description:
       'Register office visitors directly from a Google Calendar event.',
-    permissions: ['identity', 'sidePanel', 'storage', 'alarms', 'notifications'],
+    // `scripting` lets the background inject the content script into calendar tabs
+    // that were already open at install/update time, so the extension works without
+    // a manual page refresh (host permission for calendar is granted below).
+    permissions: ['identity', 'sidePanel', 'storage', 'alarms', 'notifications', 'scripting'],
     host_permissions: [
       'https://calendar.google.com/*',
       'https://www.googleapis.com/*',

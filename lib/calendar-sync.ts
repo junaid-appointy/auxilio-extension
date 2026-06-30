@@ -9,8 +9,8 @@
  * Planning-docs/2026-06-19_calendar_addon_vs_extension_capabilities.md).
  */
 import { MAGIC_ADDRESS } from './config';
-import { encodeEid, isMarked, listEvents } from './calendar';
-import type { PanelVisitorEvent, VisitorEventSummary } from './types';
+import { encodeEid, isMarked, isSuggested, listEvents } from './calendar';
+import type { EventState, PanelVisitorEvent, VisitorEventSummary } from './types';
 
 const SYNC_TOKEN_KEY = 'auxilio.syncToken';
 const MARKED_KEY = 'auxilio.markedEvents';
@@ -26,6 +26,10 @@ const HANDLED_KEY = 'auxilio.handledEvents';
  *  each status poll (NOT durable like HANDLED_KEY): if passes are later cancelled
  *  elsewhere, the next poll drops the uid and the event correctly resurfaces. */
 const ENGINE_HANDLED_KEY = 'auxilio.engineHandled';
+/** Soft SUGGESTION set: organizer events that look visitor-bound (location/room +
+ *  external guest) but have NO magic address yet. Drives only the gentle in-page
+ *  nudge — never the badge or an OS notification. Rebuilt like the marked set. */
+const SUGGESTED_KEY = 'auxilio.suggestedEvents';
 /** When the last FULL (tokenless) re-scan ran. Incremental sync only reports
  *  changes, so an event missed when its change was first consumed (e.g. a
  *  different magic address in an earlier build) is never re-examined until a full
@@ -39,8 +43,9 @@ const CONFIG_SIG_KEY = 'auxilio.configSig';
  *  load does one clean full re-scan to rebuild the marked set under the new query.
  *  v2 = bounded forward window (timeMax). v3 = organizer-only gate — forces a clean
  *  re-scan that drops events the user is merely a GUEST of, which earlier builds
- *  wrongly marked + nudged. */
-const SYNC_SCHEMA_VERSION = 3;
+ *  wrongly marked + nudged. v4 = adds the soft "suggested" set (location/room +
+ *  external guest); a full re-scan populates it for events already in the window. */
+const SYNC_SCHEMA_VERSION = 4;
 const PAST_GRACE_MS = 60 * 60_000; // keep events until 1h after they end
 const HANDLED_TTL_MS = 30 * 24 * 60 * 60_000; // forget "handled" after 30 days
 const FULL_RESYNC_INTERVAL_MS = 12 * 60 * 60_000; // re-scan the whole window twice a day
@@ -56,6 +61,32 @@ async function readMarked(): Promise<MarkedMap> {
 async function readHandled(): Promise<HandledMap> {
   const r = await chrome.storage.local.get(HANDLED_KEY);
   return (r[HANDLED_KEY] as HandledMap) ?? {};
+}
+
+async function readSuggested(): Promise<MarkedMap> {
+  const r = await chrome.storage.local.get(SUGGESTED_KEY);
+  return (r[SUGGESTED_KEY] as MarkedMap) ?? {};
+}
+
+/** The pass-linkage state of an event, for the injected row's dynamic copy. Pure
+ *  local read (no network) so the row can resolve instantly:
+ *   - 'sent'    = passes issued from this extension OR active via another surface;
+ *   - 'pending' = a magic-address visitor event with no passes yet;
+ *   - 'plain'   = anything else (ordinary or brand-new event).
+ *  `eventId` is the plain Calendar event id (not the base64 eid). */
+export async function eventState(eventId: string): Promise<EventState> {
+  if (!eventId) return 'plain';
+  const [marked, handled, engineHandled] = await Promise.all([
+    readMarked(),
+    readHandled(),
+    readEngineHandled(),
+  ]);
+  const m = marked[eventId];
+  const sent =
+    !!handled[eventId] || (!!m && engineHandled.has((m.iCalUid ?? '').toLowerCase()));
+  if (sent) return 'sent';
+  if (m) return 'pending';
+  return 'plain';
 }
 
 /** Drop the sync token so the next sync does a full tokenless re-scan of the
@@ -85,6 +116,16 @@ export async function markHandled(eventId: string): Promise<void> {
   if (!eventId) return;
   const handled = await readHandled();
   handled[eventId] = Date.now();
+  await chrome.storage.local.set({ [HANDLED_KEY]: handled });
+}
+
+/** Forget that an event was handled — so its injected row reverts from "Manage
+ *  visitors" to the create/send copy after its passes are all cancelled. */
+export async function markUnhandled(eventId: string): Promise<void> {
+  if (!eventId) return;
+  const handled = await readHandled();
+  if (!(eventId in handled)) return;
+  delete handled[eventId];
   await chrome.storage.local.set({ [HANDLED_KEY]: handled });
 }
 
@@ -134,6 +175,11 @@ export interface SyncResult {
   /** Events seen this cycle that are no longer pending visitor events (deleted/
    *  cancelled). Lets the in-page nudge purge stale optimistic guesses. */
   cancelledIds: string[];
+  /** Tracked visitor events DELETED this cycle (Google status 'cancelled'), with the
+   *  iCalUid we held for them. Drives the orphan-pass safety net: the background asks
+   *  the engine to revoke their passes, covering the case where the host's server-side
+   *  calendar watch isn't connected and would never learn of the deletion. */
+  cancelledWithUid: { eventId: string; iCalUid: string }[];
   markedCount: number;
 }
 
@@ -143,27 +189,31 @@ export interface SyncResult {
  *  earlier one (an event one run marked can vanish, and won't be re-reported once
  *  the token advances). One in-flight sync at a time removes that hazard. */
 let inFlight: Promise<SyncResult> | null = null;
-export function runSync(accessToken: string): Promise<SyncResult> {
+export function runSync(accessToken: string, selfDomain?: string): Promise<SyncResult> {
   if (inFlight) return inFlight;
-  inFlight = doRunSync(accessToken).finally(() => {
+  inFlight = doRunSync(accessToken, selfDomain).finally(() => {
     inFlight = null;
   });
   return inFlight;
 }
 
-/** Pull changes since the last sync; update the marked set; report deltas. */
-async function doRunSync(accessToken: string): Promise<SyncResult> {
+/** Pull changes since the last sync; update the marked set; report deltas.
+ *  `selfDomain` (the signed-in user's email domain) gates the soft "suggested"
+ *  set — without it we suggest nothing (can't tell internal from external). */
+async function doRunSync(accessToken: string, selfDomain = ''): Promise<SyncResult> {
   const store = await chrome.storage.local.get([
     SYNC_TOKEN_KEY,
     MARKED_KEY,
     HANDLED_KEY,
     ENGINE_HANDLED_KEY,
+    SUGGESTED_KEY,
     LAST_FULL_KEY,
   ]);
   const engineHandled = new Set((store[ENGINE_HANDLED_KEY] as string[]) ?? []);
   // The set we knew BEFORE this sync — the baseline for "what's genuinely new"
   // (so a full re-scan that re-discovers the whole window doesn't re-notify).
   const prevMarked = (store[MARKED_KEY] as MarkedMap) ?? {};
+  const prevSuggested = (store[SUGGESTED_KEY] as MarkedMap) ?? {};
   const handled = (store[HANDLED_KEY] as HandledMap) ?? {};
   const lastFull = (store[LAST_FULL_KEY] as number) ?? 0;
 
@@ -186,10 +236,13 @@ async function doRunSync(accessToken: string): Promise<SyncResult> {
   // stale/no-longer-marked events drop out. Incremental carries the set forward.
   const fullSync = !syncToken;
   const marked: MarkedMap = fullSync ? {} : { ...prevMarked };
+  // Soft suggestion set, carried forward incrementally like `marked`.
+  const suggested: MarkedMap = fullSync ? {} : { ...prevSuggested };
 
   const changedIds = new Set<string>();
   const newMarked: VisitorEventSummary[] = [];
   const cancelledIds: string[] = [];
+  const cancelledWithUid: { eventId: string; iCalUid: string }[] = [];
 
   // Series we already tracked (any previously-marked instance) — so a newly
   // discovered later occurrence of a known recurring event, OR a full re-scan
@@ -247,6 +300,15 @@ async function doRunSync(accessToken: string): Promise<SyncResult> {
       // not organized by us) → not pending. Report it so any optimistic in-page nudge
       // for it gets purged, and drop it from the marked set.
       if (cancelled || prevMarked[ev.id]) cancelledIds.push(ev.id);
+      // Orphan-pass safety net: a tracked visitor event GENUINELY DELETED on Google
+      // (status 'cancelled') may still have live passes if the host's server-side
+      // calendar watch isn't connected. Capture its iCalUid (from the set we held)
+      // so the background can ask the engine to revoke them. iCalUid may be absent on
+      // the cancelled payload itself, so prefer the value we already stored.
+      if (cancelled) {
+        const uid = prevMarked[ev.id]?.iCalUid || ev.iCalUID || '';
+        if (uid) cancelledWithUid.push({ eventId: ev.id, iCalUid: uid });
+      }
       delete marked[ev.id];
       // Only FORGET the "handled" record on a genuine cancel/delete. Don't drop it
       // just because the event left our tracked set for another reason (e.g. a
@@ -255,6 +317,22 @@ async function doRunSync(accessToken: string): Promise<SyncResult> {
       // (handledCutoff below) prunes stale records anyway.
       if (cancelled) delete handled[ev.id];
     }
+
+    // Soft suggestion set (never notified/badged): a visitor-likely event the host
+    // hasn't added the magic address to yet. Mutually exclusive with `marked` —
+    // becoming a magic event (marked_), cancelled, or no longer qualifying drops it.
+    if (!cancelled && !marked_ && ev.organizer?.self === true && isSuggested(ev, selfDomain)) {
+      suggested[ev.id] = {
+        eid: encodeEid(ev.id, 'primary'),
+        eventId: ev.id,
+        iCalUid: ev.iCalUID ?? '',
+        title: ev.summary || '(no title)',
+        start: ev.start?.dateTime ?? ev.start?.date,
+        seriesId: ev.recurringEventId || ev.id,
+      };
+    } else {
+      delete suggested[ev.id];
+    }
   }
 
   // Prune events that are well past.
@@ -262,6 +340,10 @@ async function doRunSync(accessToken: string): Promise<SyncResult> {
   for (const id of Object.keys(marked)) {
     const s = marked[id].start;
     if (s && Date.parse(s) < cutoff) delete marked[id];
+  }
+  for (const id of Object.keys(suggested)) {
+    const s = suggested[id].start;
+    if (s && Date.parse(s) < cutoff) delete suggested[id];
   }
 
   // Prune stale "handled" records so the overlay can't grow without bound.
@@ -283,6 +365,7 @@ async function doRunSync(accessToken: string): Promise<SyncResult> {
   await chrome.storage.local.set({
     [SYNC_TOKEN_KEY]: resp.nextSyncToken ?? syncToken,
     [MARKED_KEY]: marked,
+    [SUGGESTED_KEY]: suggested,
     [HANDLED_KEY]: handled,
     // Stamp the full-resync clock only when we actually did one, so the periodic
     // re-scan fires on schedule regardless of how often incremental sync runs.
@@ -299,7 +382,7 @@ async function doRunSync(accessToken: string): Promise<SyncResult> {
     if (engineHandled.has((marked[id].iCalUid ?? '').toLowerCase())) continue;
     pendingSeries.add(marked[id].seriesId ?? id);
   }
-  return { changedIds, newMarked, cancelledIds, markedCount: pendingSeries.size };
+  return { changedIds, newMarked, cancelledIds, cancelledWithUid, markedCount: pendingSeries.size };
 }
 
 /** Upcoming visitor events still needing passes, soonest first — for the panel's
@@ -319,6 +402,29 @@ export async function listMarked(): Promise<VisitorEventSummary[]> {
     const existing = bySeries.get(key);
     if (!existing || (m.start ?? '~').localeCompare(existing.start ?? '~') < 0) {
       bySeries.set(key, m);
+    }
+  }
+  return [...bySeries.values()].sort((a, b) =>
+    (a.start ?? '').localeCompare(b.start ?? ''),
+  );
+}
+
+/** Soft suggestions (location/room + external guest, no magic address yet) for the
+ *  gentle in-page nudge only. Series-collapsed to the soonest occurrence; excludes
+ *  anything that's become a firm magic event or already handled. */
+export async function listSuggested(): Promise<VisitorEventSummary[]> {
+  const [suggested, marked, handled] = await Promise.all([
+    readSuggested(),
+    readMarked(),
+    readHandled(),
+  ]);
+  const bySeries = new Map<string, VisitorEventSummary>();
+  for (const s of Object.values(suggested)) {
+    if (marked[s.eventId] || handled[s.eventId]) continue; // promoted/handled → not a suggestion
+    const key = s.seriesId ?? s.eventId;
+    const existing = bySeries.get(key);
+    if (!existing || (s.start ?? '~').localeCompare(existing.start ?? '~') < 0) {
+      bySeries.set(key, s);
     }
   }
   return [...bySeries.values()].sort((a, b) =>

@@ -69,6 +69,36 @@ export function isMarked(ev: GCalEvent): boolean {
   return inAttendees || inLocation;
 }
 
+/** The domain of an email, lower-cased, or '' if unparseable. */
+function domainOf(email: string): string {
+  return email.toLowerCase().split('@')[1] ?? '';
+}
+
+/**
+ * Soft, low-noise SUGGESTION heuristic: this looks like an event that *will* host
+ * visitors even though the host hasn't added the magic address yet. True when the
+ * event has a physical location OR a booked room/resource AND at least one EXTERNAL
+ * guest (someone outside the host's own email domain). Deliberately NOT a magic
+ * event (those are the firm `isMarked` set) — this only drives the gentle in-page
+ * "Visitors coming?" nudge, never a badge or OS notification. `myDomain` is the
+ * signed-in user's email domain; without it we can't tell internal from external,
+ * so we suggest nothing.
+ */
+export function isSuggested(ev: GCalEvent, myDomain: string): boolean {
+  if (!myDomain || isMarked(ev)) return false;
+  const hasLocation = !!(ev.location ?? '').trim();
+  const hasRoom = (ev.attendees ?? []).some((a) => a.resource);
+  if (!hasLocation && !hasRoom) return false;
+  const me = myDomain.toLowerCase();
+  return (ev.attendees ?? []).some((a) => {
+    if (a.resource || !a.email) return false;
+    const email = a.email.toLowerCase();
+    if (email === MAGIC_ADDRESS) return false;
+    const d = domainOf(email);
+    return !!d && d !== me;
+  });
+}
+
 function startOf(ev: GCalEvent): string | undefined {
   return ev.start?.dateTime ?? ev.start?.date;
 }

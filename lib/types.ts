@@ -5,6 +5,13 @@
 
 export type DraftGuestStatus = 'pending' | 'sending' | 'sent' | 'cancelled';
 
+/** Pass-linkage state of a calendar event, for the injected row's dynamic copy:
+ *  - 'sent'    = passes already issued (this extension OR another surface);
+ *  - 'pending' = a magic-address visitor event with no passes yet;
+ *  - 'plain'   = an ordinary / brand-new event we know nothing about.
+ *  Resolved from local background state (instant, no network). */
+export type EventState = 'sent' | 'pending' | 'plain';
+
 export interface DraftGuest {
   email: string;
   name: string;
@@ -23,6 +30,11 @@ export interface DraftGuest {
   emailTemplateKey?: string;
   status: DraftGuestStatus;
   invitationId?: string;
+  /** Transient read-only check-in annotations from the engine (NOT persisted): the
+   *  guest has arrived at reception. `checkedInside` = still inside (not checked out). */
+  checkedIn?: boolean;
+  checkedInside?: boolean;
+  checkinTime?: string;
 }
 
 export interface VisitDraft {

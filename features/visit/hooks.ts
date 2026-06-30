@@ -286,6 +286,29 @@ export function useSend(iCalUid: string | undefined, start?: string, end?: strin
   });
 }
 
+/** Cancel ALL passes for the event in one call (the host's "Cancel all passes").
+ *  On success the engine has revoked + emailed each guest; we mark the cached draft's
+ *  sent guests cancelled so the panel reflects it immediately, then refetch. */
+export function useCancelEvent(iCalUid: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => rpc({ type: 'CANCEL_EVENT', iCalUid: iCalUid! }),
+    onSuccess: () => {
+      qc.setQueryData<DraftResponse>(['draft', iCalUid], (prev) =>
+        prev
+          ? {
+              ...prev,
+              roster: prev.roster.map((g) =>
+                g.status === 'sent' ? { ...g, status: 'cancelled', include: false } : g,
+              ),
+            }
+          : prev,
+      );
+      qc.invalidateQueries({ queryKey: ['draft', iCalUid] });
+    },
+  });
+}
+
 export function usePreview(iCalUid: string | undefined) {
   return useMutation({
     mutationFn: (visitorEmail: string) =>

@@ -13,12 +13,15 @@ import { authStatus, getValidTokens, signIn, signOut, wasConnected } from '@/lib
 import { decodeEid, encodeEid, fetchActiveEvent } from '@/lib/calendar';
 import {
   clearSyncToken,
+  eventState,
   isEventHandled,
   isEventMarked,
   listForPanel,
   listMarked,
   listPendingICalUids,
+  listSuggested,
   markHandled,
+  markUnhandled,
   readEngineHandled,
   runSync,
   setEngineHandled,
@@ -68,6 +71,12 @@ export default defineBackground(() => {
     void syncConfigChanged().then((changed) =>
       (changed ? clearSyncToken() : Promise.resolve()).then(() => doSync()),
     );
+    // A manifest content script only auto-injects into pages loaded AFTER install,
+    // so calendar tabs already open at install/update time would need a manual
+    // refresh to come alive. Inject into them now instead — no disruptive reload,
+    // no lost work. The content script self-cleans stale nodes + uses a latest-wins
+    // token guard, so re-injecting over an orphaned (post-update) instance is safe.
+    void injectIntoOpenCalendarTabs();
   });
   chrome.runtime.onStartup.addListener(() => void doSync());
   chrome.alarms.onAlarm.addListener((a) => {
@@ -101,7 +110,7 @@ export default defineBackground(() => {
 // ─────────────────────────── sync loop ───────────────────────────
 
 async function doSync(): Promise<void> {
-  let tokens: { idToken: string; accessToken: string };
+  let tokens: { idToken: string; accessToken: string; email?: string };
   try {
     tokens = await getValidTokens();
   } catch {
@@ -113,7 +122,7 @@ async function doSync(): Promise<void> {
   }
   let result;
   try {
-    result = await runSync(tokens.accessToken);
+    result = await runSync(tokens.accessToken, domainOf(tokens.email));
   } catch (err) {
     console.warn('[auxilio] sync failed', err);
     return;
@@ -141,8 +150,9 @@ async function doSync(): Promise<void> {
 
   // In-page nudge banner: push the current marked set to calendar tabs, plus
   // any events that just stopped being pending (deleted/cancelled) so the page
-  // can purge stale optimistic nudges for them.
-  broadcastNudge(targets, result.cancelledIds);
+  // can purge stale optimistic nudges for them. Soft suggestions ride along on
+  // the same broadcast (in-page only — never badged or notified).
+  broadcastNudge(targets, result.cancelledIds, await listSuggested());
 
   // If the event the panel is showing changed (post-save), tell it to refetch.
   const stored = await chrome.storage.session.get(ACTIVE_EID_KEY);
@@ -150,6 +160,18 @@ async function doSync(): Promise<void> {
   if (activeEid) {
     const dec = decodeEid(activeEid);
     if (dec && result.changedIds.has(dec.eventId)) broadcastRefreshActive();
+  }
+
+  // Orphan-pass safety net (Tier 1 #1): a tracked visitor event was DELETED on
+  // Google. If the host's server-side calendar watch is connected the engine
+  // already revoked the passes; if it ISN'T, the engine never learns of the
+  // deletion and the visitor keeps a live pass. So ask the engine to cancel the
+  // event's passes regardless — it's idempotent (already-cancelled passes are
+  // skipped, no double email), so the connected case is a cheap no-op.
+  for (const { iCalUid } of result.cancelledWithUid) {
+    engine
+      .cancelEvent(tokens.idToken, iCalUid)
+      .catch((err) => console.warn('[auxilio] orphan-pass cancel failed', iCalUid, err));
   }
 }
 
@@ -187,8 +209,18 @@ function broadcastPanelState(open: boolean): void {
   sendToCalendarTabs({ type: PANEL_STATE, open });
 }
 
-function broadcastNudge(targets: VisitorEventSummary[], cancelled: string[] = []): void {
-  sendToCalendarTabs({ type: NUDGE_TARGETS, targets, cancelled });
+function broadcastNudge(
+  targets: VisitorEventSummary[],
+  cancelled: string[] = [],
+  suggested: VisitorEventSummary[] = [],
+): void {
+  sendToCalendarTabs({ type: NUDGE_TARGETS, targets, cancelled, suggested });
+}
+
+/** The domain of an email, lower-cased, or '' if absent/unparseable. Gates the
+ *  soft suggestion set (internal vs external attendees). */
+function domainOf(email?: string): string {
+  return (email ?? '').toLowerCase().split('@')[1] ?? '';
 }
 
 /** Enter/leave the recoverable auth-lapsed state: a distinct toolbar badge plus a
@@ -208,7 +240,34 @@ async function refreshNudgeSurfaces(): Promise<void> {
   const targets = await listMarked();
   await chrome.action.setBadgeBackgroundColor({ color: BADGE_COLOR });
   await chrome.action.setBadgeText({ text: targets.length > 0 ? String(targets.length) : '' });
-  broadcastNudge(targets);
+  broadcastNudge(targets, [], await listSuggested());
+}
+
+/** Inject the content script into calendar tabs already open at install/update
+ *  time (a manifest content script only auto-injects on subsequent loads). Best
+ *  effort per tab: a tab mid-navigation or otherwise not injectable is skipped, not
+ *  fatal. The content script is idempotent on (re)inject (stale-node cleanup +
+ *  latest-wins token), so this never doubles up the UI. */
+async function injectIntoOpenCalendarTabs(): Promise<void> {
+  let tabs: chrome.tabs.Tab[];
+  try {
+    tabs = await chrome.tabs.query({ url: 'https://calendar.google.com/*' });
+  } catch (err) {
+    console.warn('[auxilio] could not list calendar tabs for injection', err);
+    return;
+  }
+  for (const tab of tabs) {
+    if (tab.id == null) continue;
+    chrome.scripting
+      .executeScript({
+        target: { tabId: tab.id },
+        files: ['content-scripts/calendar.js'],
+      })
+      .catch((err) =>
+        // discarded tab, chrome:// interstitial, navigation in flight, etc.
+        console.debug('[auxilio] inject skipped for tab', tab.id, err?.message ?? err),
+      );
+  }
 }
 
 function sendToCalendarTabs(message: unknown): void {
@@ -352,14 +411,16 @@ async function handle(
         // back to the engine's echoed providerEventId. Not relying on the echo
         // closes a silent gap where a draft without providerEventId would never
         // get suppressed.
-        if (result.activeCount > 0) {
-          const stored = await chrome.storage.session.get(ACTIVE_EID_KEY);
-          const eid = stored[ACTIVE_EID_KEY] as string | undefined;
-          const eventId = (eid && decodeEid(eid)?.eventId) || result.draft.providerEventId;
-          if (eventId) {
-            await markHandled(eventId);
-            await refreshNudgeSurfaces();
-          }
+        const stored = await chrome.storage.session.get(ACTIVE_EID_KEY);
+        const eid = stored[ACTIVE_EID_KEY] as string | undefined;
+        const eventId = (eid && decodeEid(eid)?.eventId) || result.draft.providerEventId;
+        if (eventId) {
+          // activeCount>0 → mark handled (drop from nudge surfaces, row → "Manage").
+          // activeCount===0 (an update that toggled the last guest off) → UNmark so the
+          // row reverts and the event can resurface, mirroring an explicit cancel.
+          if (result.activeCount > 0) await markHandled(eventId);
+          else await markUnhandled(eventId);
+          await refreshNudgeSurfaces();
         }
         return result;
       });
@@ -368,12 +429,26 @@ async function handle(
         engine.cancelGuest(t, msg.iCalUid, msg.invitationId),
       );
 
+    case 'CANCEL_EVENT':
+      // Cancel EVERY pass for the event (host's "Cancel all passes"). Revoke on the
+      // engine, then UNmark locally so the injected row reverts from "Manage visitors"
+      // and the nudge surfaces refresh.
+      return withTokens(async (t) => {
+        const result = await engine.cancelEvent(t.idToken, msg.iCalUid);
+        const stored = await chrome.storage.session.get(ACTIVE_EID_KEY);
+        const eid = stored[ACTIVE_EID_KEY] as string | undefined;
+        const eventId = eid && decodeEid(eid)?.eventId;
+        if (eventId) await markUnhandled(eventId);
+        await refreshNudgeSurfaces();
+        return result;
+      });
+
     case 'LIST_VISITOR_EVENTS':
       return withTokens(async (t) => {
         // A refresh hiccup (a transient Calendar API error) must not blank the
         // list — serve the last-known marked set instead of failing the query.
         try {
-          await runSync(t.accessToken); // refresh before listing
+          await runSync(t.accessToken, domainOf(t.email)); // refresh before listing
         } catch (err) {
           console.warn('[auxilio] LIST_VISITOR_EVENTS refresh failed; serving cached set', err);
         }
@@ -386,6 +461,15 @@ async function handle(
       // Cheap read of the last-synced marked set (no token / no sync) — lets the
       // content script seed its banner immediately on page load.
       return ok(await listMarked());
+
+    case 'GET_SUGGESTED_TARGETS':
+      // Cheap read of the last-synced soft suggestion set, for the gentle nudge.
+      return ok(await listSuggested());
+
+    case 'EVENT_STATE':
+      // Pure local read (no token/network) so the injected row can resolve its
+      // copy instantly: 'sent' | 'pending' | 'plain'.
+      return ok({ state: await eventState(msg.eventId) });
 
     case 'IS_EVENT_HANDLED':
       // Lets the in-page optimistic nudge skip an event whose passes were already

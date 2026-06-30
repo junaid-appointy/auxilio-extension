@@ -18,7 +18,7 @@ import {
   NUDGE_TARGETS,
   PANEL_STATE,
 } from '@/lib/messaging';
-import type { DomEventSnapshot, VisitorEventSummary } from '@/lib/types';
+import type { DomEventSnapshot, EventState, VisitorEventSummary } from '@/lib/types';
 
 /** True while our extension context is still valid. After an extension reload or
  *  update, this content script is orphaned: every `chrome.*` call then throws
@@ -63,6 +63,21 @@ function safeStorageSet(items: Record<string, unknown>): Promise<void> {
 export default defineContentScript({
   matches: ['https://calendar.google.com/*'],
   main() {
+    // The background injects this script into calendar tabs already open at
+    // install/update time (so no manual refresh is needed). That can run OVER an
+    // orphaned earlier instance whose DOM nodes still linger, or — in a rare race —
+    // alongside the manifest-injected copy. Guard both:
+    //  1) remove any nodes a prior instance left (banners/buttons/styles), then
+    //  2) claim a latest-wins token; if a newer instance later claims it, this one
+    //     tears itself down (see the editorPoll + render guards).
+    for (const el of document.querySelectorAll(`[data-auxilio],#${STYLE_ID},[id="${INJECT_ID}"]`)) {
+      el.remove();
+    }
+    const mountToken = Math.random().toString(36).slice(2);
+    const win = window as unknown as { __auxilioMountToken?: string };
+    win.__auxilioMountToken = mountToken;
+    const isCurrent = () => win.__auxilioMountToken === mountToken;
+
     // The id of the most recently clicked event chip — the event whose popover
     // is opening. Reset when the surface closes so a later unrelated dialog
     // can't resurrect a stale button.
@@ -78,6 +93,39 @@ export default defineContentScript({
     // Set by readSurface when a non-event modal is open (a confirmation): we keep the
     // injected button in the form behind it, but must not float the FAB over the modal.
     let suppressFab = false;
+
+    // Dynamic row copy: resolved from the background's LOCAL event state (instant,
+    // no network) so the row reads "Manage visitors" on an event that already has
+    // passes and "Create invite passes" otherwise. Default to the safe `plain` copy;
+    // upgrade in place when the (sub-frame) answer returns. Deduped by eid so render
+    // churn doesn't spam the background.
+    let currentCopy: RowCopy = DEFAULT_COPY;
+    let copyForEid: string | null = null;
+    function resolveCopy(eid: string): void {
+      if (copyForEid === eid) return;
+      copyForEid = eid;
+      const eventId = eid ? decodeEventId(eid) : '';
+      if (!eventId) {
+        // Brand-new / unsaved event → nothing issued yet → the create copy.
+        currentCopy = DEFAULT_COPY;
+        button.setCopy(currentCopy);
+        return;
+      }
+      // Optimistic default while we ask; the answer (usually <1 frame) refines it.
+      currentCopy = DEFAULT_COPY;
+      button.setCopy(currentCopy);
+      // NOTE: safeSend resolves to the FULL RpcResponse wrapper ({ok,data}) — read
+      // the state off res.data, not res itself (that bug pinned the row to 'plain').
+      safeSend<{ ok?: boolean; data?: { state?: EventState } }>({
+        type: 'EVENT_STATE',
+        eventId,
+      }).then((res) => {
+        if (copyForEid !== eid) return; // surface moved on; ignore a late answer
+        if (!res?.ok) return; // keep the safe default on failure
+        currentCopy = ROW_COPY[res.data?.state ?? 'plain'];
+        button.setCopy(currentCopy);
+      });
+    }
 
     // Button UI: a native injected button when a clean anchor exists, else a
     // floating fallback (Idea 2). The magic-address gate is dropped — the button
@@ -106,6 +154,13 @@ export default defineContentScript({
         if (res?.ok) nudge.setTargets(res.data as VisitorEventSummary[]);
       },
     );
+    // Soft suggestions (visitor-likely events without the magic address yet) seed
+    // the gentler banner the same way.
+    safeSend<{ ok?: boolean; data?: VisitorEventSummary[] }>({
+      type: 'GET_SUGGESTED_TARGETS',
+    }).then((res) => {
+      if (res?.ok) nudge.setSuggested(res.data as VisitorEventSummary[]);
+    });
 
     // Reconnect banner: shown when the background reports a recoverable auth lapse
     // (the user was connected but a silent token renew failed), so nudging never
@@ -153,6 +208,7 @@ export default defineContentScript({
     let wasEditor = /\/eventedit/.test(location.pathname);
     const editorPoll = setInterval(() => {
       if (!extAlive()) return teardown(); // orphaned by an extension reload → stop
+      if (!isCurrent()) return teardown(); // a newer injected instance took over → stop
       const isEditor = /\/eventedit/.test(location.pathname);
       if (wasEditor && !isEditor) syncBurst(); // left the editor → likely saved
       wasEditor = isEditor;
@@ -261,6 +317,7 @@ export default defineContentScript({
 
     function render() {
       if (!extAlive()) return teardown(); // orphaned by an extension reload → stop
+      if (!isCurrent()) return teardown(); // superseded by a newer injected instance
       const surface = readSurface();
       lastSnapshot = surface ? snapshotOf(surface.el, surface.eid) : null;
 
@@ -314,7 +371,14 @@ export default defineContentScript({
       // held back while a non-event modal is up so it never floats over a confirmation.
       // Pass the resolved surface element so the button anchors INSIDE it (never a
       // hidden leftover dialog) and re-places itself if a re-render drifts it out.
-      button.update(!!surface, !suppressFab, surface?.el ?? null);
+      // Resolve the row's copy from the event's pass-linkage state (default plain
+      // when no surface). Deduped by eid inside resolveCopy.
+      if (surface) resolveCopy(surface.eid);
+      else {
+        copyForEid = null;
+        currentCopy = DEFAULT_COPY;
+      }
+      button.update(!!surface, !suppressFab, surface?.el ?? null, currentCopy);
       if (panelOpen) maybeFollow();
     }
 
@@ -386,6 +450,7 @@ export default defineContentScript({
         open?: boolean;
         targets?: VisitorEventSummary[];
         cancelled?: string[];
+        suggested?: VisitorEventSummary[];
         lapsed?: boolean;
       }) => {
         if (msg?.type === PANEL_STATE) {
@@ -396,6 +461,13 @@ export default defineContentScript({
           render();
         } else if (msg?.type === NUDGE_TARGETS) {
           nudge.setTargets(msg.targets ?? [], msg.cancelled ?? []);
+          nudge.setSuggested(msg.suggested ?? []);
+          // A sync (incl. the one right after a send marks the event handled) may
+          // have changed the open event's pass state — invalidate the per-eid copy
+          // cache and re-render so the row flips to "Manage visitors" without a
+          // manual refresh or reopen. EVENT_STATE is a local read, so this is cheap.
+          copyForEid = null;
+          render();
         } else if (msg?.type === AUTH_LAPSED) {
           reconnect.setLapsed(!!msg.lapsed);
         }
@@ -458,13 +530,21 @@ const USERS_SVG = `
   <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
   <path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`;
 
-const LABEL = 'Manage Visitors';
 const INJECT_ID = 'auxilio-manage-visitors';
 
-// Detail-popover content row copy — mirrors Google's own rows (bold action + muted
-// description), e.g. "Take meeting notes / Start a new document to capture notes".
-const ROW_TITLE = 'Manage visitors';
-const ROW_SUB = 'Register guests and send entry passes';
+type RowCopy = { title: string; sub: string };
+
+// State-driven copy for the injected row / pill — mirrors Google's own rows (bold
+// action + muted description). The title doubles as the inline-pill label. Short,
+// no dashes (house rule). Default before the (instant, local) state resolves is the
+// safe `plain` copy: we only upgrade to "Manage visitors" once passes are known to
+// exist, so the row never claims there's something to manage when there isn't.
+const ROW_COPY: Record<EventState, RowCopy> = {
+  sent: { title: 'Manage visitors', sub: 'Update guests or resend passes' },
+  pending: { title: 'Send entry passes', sub: 'Invite your guests to check in' },
+  plain: { title: 'Create invite passes', sub: 'Send entry passes to visitors' },
+};
+const DEFAULT_COPY = ROW_COPY.plain;
 
 /** The Auxilio mark, flattened to a single brand-purple fill and self-contained (no
  *  gradients/ids/<style> that could leak into or collide with the host page). Sized by
@@ -499,6 +579,17 @@ function createButtonUI(onClick: () => void) {
   // doesn't have to re-detect it on every mutation. 'row' = detail-popover content row;
   // 'inline' = editor page or quick-create popover (inline button next to Save).
   let surfaceMode: 'row' | 'inline' | null = null;
+  // Current dynamic copy, propagated to whichever placement is live. Set by update()
+  // / setCopy() from the content script's resolved event state.
+  let copy: RowCopy = DEFAULT_COPY;
+
+  /** Push the current copy onto the live inline placement (the editor row or the
+   *  quick-create pill). The popover row is handled by its own manager. */
+  function applyInjectedCopy(): void {
+    if (!injected) return;
+    if (injected.classList.contains('auxilio-mv-row')) applyRowCopy(injected, copy);
+    else applyPillCopy(injected, copy);
+  }
 
   // A clean injection anchor: where to drop the button + how far to indent it so
   // it lines up with the section's content column (past Google's icon gutter).
@@ -574,8 +665,8 @@ function createButtonUI(onClick: () => void) {
     removeInjected();
     ensureInjectedStyles();
     injected = anchor.inline
-      ? buildInlineButton(onClick)
-      : buildInjectedRow(onClick, anchor.inset, anchor.list);
+      ? buildInlineButton(onClick, copy)
+      : buildInjectedRow(onClick, anchor.inset, anchor.list, copy);
     anchor.insert(injected);
     return true;
   }
@@ -598,9 +689,17 @@ function createButtonUI(onClick: () => void) {
     // it's redundant (auto-follow handles the viewed event), and it would flash
     // at the corner while a navigated page is still loading. So callers pass
     // false when the panel is open.
-    update(show: boolean, allowFab = true, surfaceEl: HTMLElement | null = null) {
+    update(
+      show: boolean,
+      allowFab = true,
+      surfaceEl: HTMLElement | null = null,
+      nextCopy: RowCopy = copy,
+    ) {
       lastShow = show;
       lastSurfaceEl = surfaceEl;
+      copy = nextCopy;
+      fab.setLabel(copy.title);
+      popover.setCopy(copy);
       clearTimeout(retryTimer);
       if (!show) {
         // Defer the hide: if the surface comes right back (hydration churn / a transient
@@ -642,6 +741,9 @@ function createButtonUI(onClick: () => void) {
       let attempts = 0;
       const attempt = () => {
         const placed = ensureInjected(surfaceEl);
+        // Keep an already-placed node's copy in sync (ensureInjected only sets copy
+        // when it (re)builds; an early-return keep would otherwise hold stale text).
+        if (placed) applyInjectedCopy();
         // Show the floating fallback only after a short grace period, so on a
         // normally-rendering surface the native button just appears — no flash
         // of the FAB getting replaced a moment later.
@@ -650,6 +752,15 @@ function createButtonUI(onClick: () => void) {
         retryTimer = setTimeout(attempt, 150);
       };
       attempt();
+    },
+
+    /** Live copy update without recomputing the surface — used when the event's
+     *  state resolves (or changes) after the row is already on screen. */
+    setCopy(next: RowCopy) {
+      copy = next;
+      fab.setLabel(copy.title);
+      popover.setCopy(copy);
+      applyInjectedCopy();
     },
 
     // Synchronous re-assert from the MutationObserver on every DOM change. POPOVER: tell
@@ -951,23 +1062,45 @@ function ensureInjectedStyles() {
 }
 
 /** The native-styled button itself (light DOM, classes from ensureInjectedStyles). */
-function makeNativeButton(onClick: () => void): HTMLButtonElement {
+function makeNativeButton(onClick: () => void, label = DEFAULT_COPY.title): HTMLButtonElement {
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'auxilio-mv-btn';
-  btn.innerHTML = `${USERS_SVG}<span>${LABEL}</span>`;
+  btn.innerHTML = `${USERS_SVG}<span>${escapeText(label)}</span>`;
   shieldInteractions(btn);
   wireActivate(btn, onClick);
   return btn;
 }
 
+/** Live-update the title + subtitle of a content row in place (the popover row or
+ *  the editor row). Skips the title while the row is mid-activation ("Opening…")
+ *  so a late state answer can't clobber the busy label. */
+function applyRowCopy(row: HTMLElement, copy: RowCopy): void {
+  const title = row.querySelector<HTMLElement>('.auxilio-mv-row-title');
+  const sub = row.querySelector<HTMLElement>('.auxilio-mv-row-sub');
+  if (title && row.getAttribute('aria-busy') !== 'true') title.textContent = copy.title;
+  if (sub) sub.textContent = copy.sub;
+}
+
+/** Live-update the inline pill's label in place, unless it's mid-activation
+ *  (disabled while showing "Opening…"). */
+function applyPillCopy(btn: HTMLElement, copy: RowCopy): void {
+  const label = btn.querySelector<HTMLElement>('span');
+  if (label && !(btn as HTMLButtonElement).disabled) label.textContent = copy.title;
+}
+
 /** A full-width row carrying the button, indented to align with the section
  *  content column. Flows like a native section, so it can't overlap siblings. */
-function buildInjectedRow(onClick: () => void, inset: number, list?: HTMLElement): HTMLElement {
+function buildInjectedRow(
+  onClick: () => void,
+  inset: number,
+  list?: HTMLElement,
+  copy: RowCopy = DEFAULT_COPY,
+): HTMLElement {
   const row = document.createElement('div');
   row.id = INJECT_ID;
   row.className = 'auxilio-mv-row';
-  const title = buildContentRowInner(row);
+  const title = buildContentRowInner(row, copy);
 
   if (list) {
     styleContentRowLikeNative(row, list);
@@ -1018,7 +1151,7 @@ const seenEventPopovers = new Set<string>();
  *  rows like "Take meeting notes / Start a new document to capture notes"). Only the
  *  TITLE is the control (like Google's "Join with Google Meet" link); the icon and the
  *  description are inert. Returns the title element — our integrity marker. */
-function buildContentRowInner(row: HTMLElement): HTMLElement {
+function buildContentRowInner(row: HTMLElement, copy: RowCopy = DEFAULT_COPY): HTMLElement {
   row.textContent = '';
   const icon = document.createElement('span');
   icon.className = 'auxilio-mv-row-icon';
@@ -1028,12 +1161,12 @@ function buildContentRowInner(row: HTMLElement): HTMLElement {
   text.className = 'auxilio-mv-row-text';
   const title = document.createElement('span');
   title.className = 'auxilio-mv-row-title';
-  title.textContent = ROW_TITLE;
+  title.textContent = copy.title;
   title.setAttribute('role', 'button');
   title.tabIndex = 0;
   const sub = document.createElement('span');
   sub.className = 'auxilio-mv-row-sub';
-  sub.textContent = ROW_SUB;
+  sub.textContent = copy.sub;
   text.append(title, sub);
   row.append(icon, text);
   return title;
@@ -1170,7 +1303,8 @@ function mountContentRow(onClick: () => void) {
   const row = document.createElement('div');
   row.id = INJECT_ID;
   row.className = 'auxilio-mv-row';
-  let title = buildContentRowInner(row);
+  let copy: RowCopy = DEFAULT_COPY;
+  let title = buildContentRowInner(row, copy);
 
   // ONLY the title is the control (like Google's "Join with Google Meet" link). Activation
   // (pointer + keyboard) lives on the title, reading the LIVE title so a rebuild after an
@@ -1229,7 +1363,7 @@ function mountContentRow(onClick: () => void) {
   /** Rebuild our content if the keyless list reused our node and replaced its contents. */
   const repair = (): void => {
     if (row.contains(title)) return;
-    title = buildContentRowInner(row);
+    title = buildContentRowInner(row, copy);
   };
 
   /** Place (or repair) the row at the bottom of the content list, styled like a native
@@ -1297,6 +1431,11 @@ function mountContentRow(onClick: () => void) {
       placed = false;
       clearTimeout(settleTimer);
     },
+    /** Update the row's copy in place (title + subtitle), without re-placing. */
+    setCopy(next: RowCopy): void {
+      copy = next;
+      applyRowCopy(row, copy);
+    },
   };
 }
 
@@ -1305,8 +1444,8 @@ function mountContentRow(onClick: () => void) {
  *  to the row's text baseline (riding slightly high with a gap beneath); center it
  *  for both the inline-block case (vertical-align) and the flex-row case (align-self
  *  — so it doesn't stretch taller than its neighbours either). */
-function buildInlineButton(onClick: () => void): HTMLButtonElement {
-  const btn = makeNativeButton(onClick);
+function buildInlineButton(onClick: () => void, copy: RowCopy = DEFAULT_COPY): HTMLButtonElement {
+  const btn = makeNativeButton(onClick, copy.title);
   btn.id = INJECT_ID;
   btn.style.marginRight = '8px';
   btn.style.verticalAlign = 'middle';
@@ -1337,6 +1476,7 @@ function mountFloating(onClick: () => void) {
   // swallow clicks for) Google's own bottom drawer buttons (e.g. the event-edit add-on
   // drawer's "View"). The shown button re-enables hits via `.fab.show{pointer-events:auto}`.
   host.style.cssText = 'position:fixed;right:24px;bottom:24px;z-index:2147483646;pointer-events:none;';
+  host.setAttribute('data-auxilio', 'host'); // marker for the next instance's startup cleanup
   document.documentElement.appendChild(host);
   const root = host.attachShadow({ mode: 'open' });
   root.innerHTML = `
@@ -1356,13 +1496,20 @@ function mountFloating(onClick: () => void) {
       .fab[disabled]{opacity:.6;pointer-events:none;}
       @media (prefers-reduced-motion: reduce){.fab{transition:none;transform:none;}}
     </style>
-    <button class="fab" type="button">${USERS_SVG}<span class="label">${LABEL}</span></button>`;
+    <button class="fab" type="button">${USERS_SVG}<span class="label">${escapeText(
+      DEFAULT_COPY.title,
+    )}</span></button>`;
   const btn = root.querySelector('button') as HTMLButtonElement;
+  const labelEl = root.querySelector('.label') as HTMLSpanElement | null;
   shieldInteractions(host);
   wireActivate(btn, onClick);
   return {
     setVisible(v: boolean) {
       btn.classList.toggle('show', v);
+    },
+    setLabel(label: string) {
+      // Don't fight the "Opening…" feedback while a click is in flight.
+      if (labelEl && !btn.disabled) labelEl.textContent = label;
     },
   };
 }
@@ -1401,8 +1548,12 @@ const NUDGE_X_SVG = `
 
 /**
  * In-page nudge banner (sync-driven). Shows the soonest visitor event the user
- * saved but hasn't acted on. "Manage" opens the panel AND navigates this tab to
- * the event — one click opens both. Dismissals persist in storage.session.
+ * saved but hasn't acted on. Two kinds, firm first:
+ *  - FIRM (magic-address events): brand-tinted "Needs visitor passes" + Manage.
+ *  - SUGGESTED (location/room + external guest, no magic address yet): a softer,
+ *    neutral-tinted "Visitors coming? Send entry passes" + Review. Lower priority,
+ *    same one-tap-to-open + session-dismiss. Never badged or notified.
+ * "Manage"/"Review" opens the panel for the event. Dismissals persist in storage.session.
  */
 function mountNudge() {
   const host = document.createElement('div');
@@ -1412,6 +1563,7 @@ function mountNudge() {
   // restores hits when it's actually shown.
   host.style.cssText =
     'position:fixed;top:72px;left:50%;transform:translateX(-50%);z-index:2147483647;pointer-events:none;';
+  host.setAttribute('data-auxilio', 'host'); // marker for the next instance's startup cleanup
   document.documentElement.appendChild(host);
   const root = host.attachShadow({ mode: 'open' });
   root.innerHTML = `
@@ -1426,6 +1578,11 @@ function mountNudge() {
         transition:opacity 200ms cubic-bezier(.2,0,0,1),transform 200ms cubic-bezier(.2,0,0,1);
       }
       .banner.show{opacity:1;transform:none;pointer-events:auto;}
+      /* SUGGESTED variant: calmer, neutral tint so it reads as a gentle hint, not a
+         firm "you must act" prompt. */
+      .banner.suggested{background:#eef0f4;border-color:#3c404326;color:#1f2430;}
+      .banner.suggested .icon{color:#5f6368;}
+      .banner.suggested .manage{background:#444746;}
       .icon{display:inline-flex;color:#92288e;flex:0 0 auto;align-self:flex-start;margin-top:1px;}
       .text{display:flex;flex-direction:column;gap:1px;min-width:0;}
       /* Event name is the hero: prominent, ellipsised; the action reads as the subtitle. */
@@ -1452,6 +1609,7 @@ function mountNudge() {
       </span>
     </div>`;
   const wrap = root.querySelector('.banner') as HTMLDivElement;
+  const iconEl = root.querySelector('.icon') as HTMLSpanElement;
   const titleEl = root.querySelector('.title') as HTMLSpanElement;
   const subEl = root.querySelector('.sub') as HTMLSpanElement;
   const manageBtn = root.querySelector('.manage') as HTMLButtonElement;
@@ -1459,6 +1617,9 @@ function mountNudge() {
   shieldInteractions(host);
 
   let targets: VisitorEventSummary[] = [];
+  // Soft suggestions (visitor-likely events without the magic address yet). Shown
+  // only when there's no firm target pending, with calmer copy/tint.
+  let suggested: VisitorEventSummary[] = [];
   // Optimistic, DOM-derived targets shown INSTANTLY (no API wait) for an event
   // the user just interacted with; the API sync reconciles them by eventId.
   const optimistic = new Map<string, VisitorEventSummary>();
@@ -1482,7 +1643,7 @@ function mountNudge() {
     render();
   });
 
-  /** Merged, deduped, soonest-first (synced target wins over optimistic). */
+  /** Merged firm targets, deduped, soonest-first (synced target wins over optimistic). */
   function merged(): VisitorEventSummary[] {
     const byId = new Map<string, VisitorEventSummary>();
     for (const o of optimistic.values()) byId.set(o.eventId, o);
@@ -1492,24 +1653,40 @@ function mountNudge() {
     );
   }
 
-  function visible(): VisitorEventSummary | null {
-    return merged().find((t) => !dismissed.has(t.eventId)) ?? null;
+  /** What to show: firm targets take priority; suggestions only when none are
+   *  pending. Returns the item, its kind, and how many more of that kind remain. */
+  function pick(): { item: VisitorEventSummary; kind: 'firm' | 'suggested'; more: number } | null {
+    const firm = merged().filter((t) => !dismissed.has(t.eventId));
+    if (firm.length) return { item: firm[0], kind: 'firm', more: firm.length - 1 };
+    const sug = suggested
+      .filter((s) => !dismissed.has(s.eventId))
+      .sort((a, b) => (a.start ?? '~').localeCompare(b.start ?? '~'));
+    if (sug.length) return { item: sug[0], kind: 'suggested', more: sug.length - 1 };
+    return null;
   }
 
   function render() {
-    const t = panelOpen ? null : visible();
-    current = t;
-    if (!t) {
+    const picked = panelOpen ? null : pick();
+    current = picked?.item ?? null;
+    if (!picked) {
       wrap.classList.remove('show');
       return;
     }
-    const more = merged().filter((x) => !dismissed.has(x.eventId)).length - 1;
-    // Event name is the hero (title row); the "needs passes" prompt is the subtitle.
-    // Fall back to a generic title only when we genuinely have no event name.
-    const name = t.title?.trim();
-    titleEl.textContent = name || 'Visitor event';
-    subEl.textContent =
-      'Needs visitor passes' + (more > 0 ? ` · +${more} more` : '');
+    // Event name is the hero (title row); the prompt reads as the subtitle.
+    const name = picked.item.title?.trim();
+    const suffix = picked.more > 0 ? ` · +${picked.more} more` : '';
+    if (picked.kind === 'firm') {
+      iconEl.innerHTML = BELL_SVG;
+      titleEl.textContent = name || 'Visitor event';
+      subEl.textContent = 'Needs visitor passes' + suffix;
+      manageBtn.textContent = 'Manage';
+    } else {
+      iconEl.innerHTML = USERS_SVG;
+      titleEl.textContent = name || 'Possible visitors';
+      subEl.textContent = 'Visitors coming? Send entry passes' + suffix;
+      manageBtn.textContent = 'Review';
+    }
+    wrap.classList.toggle('suggested', picked.kind === 'suggested');
     wrap.classList.add('show');
   }
 
@@ -1533,7 +1710,7 @@ function mountNudge() {
     // to jump to it.
     safeSend({ type: 'OPEN_FOR_EVENT', eid: target.eid }).finally(() => {
       manageBtn.disabled = false;
-      manageBtn.textContent = 'Manage';
+      render(); // restore the correct label (Manage/Review) for whatever shows next
     });
   });
 
@@ -1569,6 +1746,10 @@ function mountNudge() {
       );
       render();
     },
+    setSuggested(next: VisitorEventSummary[]) {
+      suggested = next ?? [];
+      render();
+    },
     setPanelOpen(open: boolean) {
       panelOpen = open;
       render();
@@ -1600,6 +1781,7 @@ function mountReconnect(onReconnect: () => void) {
   // it never swallows clicks on the Calendar UI beneath it.
   host.style.cssText =
     'position:fixed;top:120px;left:50%;transform:translateX(-50%);z-index:2147483647;pointer-events:none;';
+  host.setAttribute('data-auxilio', 'host'); // marker for the next instance's startup cleanup
   document.documentElement.appendChild(host);
   const root = host.attachShadow({ mode: 'open' });
   root.innerHTML = `

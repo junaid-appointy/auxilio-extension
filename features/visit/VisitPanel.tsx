@@ -3,11 +3,13 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   AlertCircle,
   ArrowLeft,
+  Ban,
   CheckCircle2,
   Clock,
   DoorOpen,
   ExternalLink,
   Eye,
+  Link2,
   LogIn,
   RefreshCw,
 } from 'lucide-react';
@@ -32,6 +34,7 @@ import {
   useActiveEid,
   useActiveSnapshot,
   useAuthStatus,
+  useCancelEvent,
   useDraft,
   usePatchDraft,
   usePreview,
@@ -76,7 +79,19 @@ export function VisitPanel() {
   const patch = usePatchDraft(event?.iCalUid);
   const send = useSend(event?.iCalUid, event?.start, event?.end);
   const preview = usePreview(event?.iCalUid);
+  const cancelEvent = useCancelEvent(event?.iCalUid);
   const signIn = useSignIn();
+  // Two-step inline confirm for the destructive "cancel all passes" (no native dialog).
+  const [confirmCancelAll, setConfirmCancelAll] = useState(false);
+  // Scroll the confirmation fully into view when it opens — it lives at the bottom of
+  // the scroll area, so a tap on "Cancel all passes" could otherwise reveal it below
+  // the fold.
+  const cancelConfirmRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (confirmCancelAll) {
+      cancelConfirmRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [confirmCancelAll]);
 
   // While a write is in flight, ignore the post-save REFRESH_ACTIVE refetch: a
   // DRAFT_LOAD that reads the engine before our PATCH commits would overwrite the
@@ -105,6 +120,8 @@ export function VisitPanel() {
     templateBaseline.current = undefined;
   };
   useEffect(resetEditBaseline, [event?.iCalUid]);
+  // Drop a half-armed cancel-all confirm when switching events.
+  useEffect(() => setConfirmCancelAll(false), [event?.iCalUid]);
 
   // Guard 1: hold the current event while sending / previewing; catch up once idle.
   const busy = send.isPending || preview.isPending || !!previewData;
@@ -235,6 +252,8 @@ export function VisitPanel() {
   };
   const included = data.roster.filter((g) => g.include);
   const sentCount = data.roster.filter((g) => g.status === 'sent').length;
+  // Check-in feedback (Tier 3 #6): how many issued guests have arrived at reception.
+  const checkedInCount = data.roster.filter((g) => g.checkedIn).length;
 
   const templates = data.emailTemplates;
   // One template for the whole event (engine stores per-guest; we set all guests
@@ -380,6 +399,35 @@ export function VisitPanel() {
           )}
         </Card>
 
+        {/* Auto-sync awareness (Tier 1 #2): the host owns this event but their
+            calendar isn't connected, so moving/deleting it won't update the passes
+            automatically. Offer a one-tap connect. Only shown when it's actionable. */}
+        {data.calendarSync?.relevant &&
+          !data.calendarSync.connected &&
+          data.calendarSync.canConnect &&
+          data.calendarSync.connectUrl && (
+            <div className="banner banner--info" role="status" style={{ alignItems: 'flex-start' }}>
+              <Link2 size={18} strokeWidth={2} style={{ flex: '0 0 auto', marginTop: 2 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="type-label">Auto-sync is off</div>
+                <div className="type-label-sm text-muted">
+                  Connect your calendar so moving or cancelling this event updates the
+                  passes automatically.
+                </div>
+                <Button
+                  variant="tonal"
+                  icon={<Link2 size={16} strokeWidth={2} />}
+                  onClick={() =>
+                    window.open(data.calendarSync.connectUrl, '_blank', 'noopener')
+                  }
+                  style={{ marginTop: 'var(--space-sm)' }}
+                >
+                  Connect calendar
+                </Button>
+              </div>
+            </div>
+          )}
+
         {/* Roster */}
         <section>
           <div
@@ -388,6 +436,21 @@ export function VisitPanel() {
           >
             Guests · {included.length} getting a pass
           </div>
+          {checkedInCount > 0 && (
+            <div
+              className="type-label-sm"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                marginBottom: 8,
+                color: 'var(--color-on-success-container)',
+              }}
+            >
+              <CheckCircle2 size={14} strokeWidth={2} style={{ flex: '0 0 auto' }} />
+              {checkedInCount} of {sentCount} checked in
+            </div>
+          )}
           {data.roster.length === 0 ? (
             <Card className="type-body text-muted">
               No guests on this event yet. Add attendees in Calendar, then reopen.
@@ -472,6 +535,83 @@ export function VisitPanel() {
         {sentCount > 0 && !send.isPending && !nothingToDo && (
           <div className="type-label-sm text-muted" style={{ textAlign: 'center', marginTop: 6 }}>
             {sentCount} pass{sentCount > 1 ? 'es' : ''} already issued
+          </div>
+        )}
+
+        {/* One-tap cancel-all (Tier 2 #4): revoke every issued pass for this event in
+            one go, with a two-step inline confirm (no native dialog). The trigger is
+            full-width to match the primary action; the confirm is a clear card that
+            scrolls itself into view. */}
+        {data.materialized && sentCount > 0 && !send.isPending && (
+          confirmCancelAll ? (
+            <div
+              ref={cancelConfirmRef}
+              role="alertdialog"
+              aria-label="Cancel all passes"
+              style={{
+                marginTop: 'var(--space-sm)',
+                padding: 'var(--space-md)',
+                borderRadius: 'var(--radius-lg)',
+                border: '1px solid var(--color-error)',
+                background: 'var(--color-error-container)',
+                color: 'var(--color-on-error-container)',
+                display: 'grid',
+                gap: 'var(--space-md)',
+              }}
+            >
+              <div style={{ display: 'flex', gap: 'var(--space-sm)', alignItems: 'flex-start' }}>
+                <AlertCircle size={20} strokeWidth={2} style={{ flex: '0 0 auto', marginTop: 1 }} />
+                <div style={{ display: 'grid', gap: 2 }}>
+                  <span className="type-label">
+                    Cancel all {sentCount} pass{sentCount > 1 ? 'es' : ''}?
+                  </span>
+                  <span className="type-label-sm" style={{ opacity: 0.85 }}>
+                    Every guest is emailed that their visit is cancelled. You can re-issue
+                    passes later if plans change.
+                  </span>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
+                <Button block variant="tonal" onClick={() => setConfirmCancelAll(false)}>
+                  Keep passes
+                </Button>
+                <Button
+                  block
+                  variant="danger"
+                  loading={cancelEvent.isPending}
+                  icon={<Ban size={16} strokeWidth={2} />}
+                  onClick={() =>
+                    cancelEvent.mutate(undefined, {
+                      onSuccess: () => {
+                        setConfirmCancelAll(false);
+                        resetEditBaseline();
+                      },
+                    })
+                  }
+                >
+                  Cancel all
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button
+              block
+              variant="text"
+              icon={<Ban size={16} strokeWidth={2} />}
+              onClick={() => setConfirmCancelAll(true)}
+              style={{
+                marginTop: 'var(--space-sm)',
+                color: 'var(--color-error)',
+                border: '1px solid var(--color-error)',
+              }}
+            >
+              Cancel all passes
+            </Button>
+          )
+        )}
+        {cancelEvent.isError && (
+          <div className="type-label-sm" style={{ color: 'var(--color-error)', textAlign: 'center', marginTop: 6 }}>
+            {(cancelEvent.error as Error).message}
           </div>
         )}
       </footer>

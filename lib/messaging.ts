@@ -10,6 +10,7 @@ import type {
   DomEventSnapshot,
   DraftPatch,
   DraftResponse,
+  EventState,
   PanelVisitorEvent,
   PreviewResponse,
   ResolvedPerson,
@@ -32,8 +33,11 @@ export type RpcRequest =
   | { type: 'PREVIEW'; iCalUid: string; visitorEmail: string }
   | { type: 'SEND'; iCalUid: string; start?: string; end?: string }
   | { type: 'CANCEL_GUEST'; iCalUid: string; invitationId: string }
+  | { type: 'CANCEL_EVENT'; iCalUid: string }
   | { type: 'LIST_VISITOR_EVENTS' }
   | { type: 'GET_NUDGE_TARGETS' }
+  | { type: 'GET_SUGGESTED_TARGETS' }
+  | { type: 'EVENT_STATE'; eventId: string }
   | { type: 'IS_EVENT_HANDLED'; eventId: string }
   | { type: 'IS_NUDGE_WORTHY'; eid: string; eventId: string }
   | { type: 'SYNC_NOW' }
@@ -55,8 +59,11 @@ export interface RpcResultMap {
   PREVIEW: PreviewResponse;
   SEND: SendResponse;
   CANCEL_GUEST: { invitationId: string; cancelled: boolean };
+  CANCEL_EVENT: { iCalUid: string; cancelled: number; activeCount: number };
   LIST_VISITOR_EVENTS: PanelVisitorEvent[];
   GET_NUDGE_TARGETS: VisitorEventSummary[];
+  GET_SUGGESTED_TARGETS: VisitorEventSummary[];
+  EVENT_STATE: { state: EventState };
   IS_EVENT_HANDLED: { handled: boolean };
   IS_NUDGE_WORTHY: { worthy: boolean };
   SYNC_NOW: { synced: boolean };

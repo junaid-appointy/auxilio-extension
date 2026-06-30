@@ -153,7 +153,12 @@ export function RosterRow({
           <div className="guest__name">
             <span className="type-label row__ellipsis">{display}</span>
             {guest.internal && !sent && !cancelled && <Chip>Internal</Chip>}
-            {sent && guest.include && <Chip tone="success">Pass sent</Chip>}
+            {/* Check-in feedback (Tier 3 #6): once the guest has arrived, "Checked in"
+                (or "Inside now") supersedes the plain "Pass sent" chip. */}
+            {sent && guest.include && !guest.checkedIn && <Chip tone="success">Pass sent</Chip>}
+            {guest.checkedIn && (
+              <Chip tone="success">{guest.checkedInside ? 'Inside now' : 'Checked in'}</Chip>
+            )}
             {pendingCancel && <Chip tone="error">Will cancel</Chip>}
             {cancelled && <Chip tone="error">Cancelled</Chip>}
           </div>
