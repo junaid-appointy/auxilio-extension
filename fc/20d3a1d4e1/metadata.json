@@ -1,0 +1,37 @@
+{
+  "cli_version": "0.7.6",
+  "checkpoint_id": "fc20d3a1d4e1",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 6,
+  "files_touched": [
+    "PERFORMANCE_AUDIT.md",
+    "design/global.css",
+    "entrypoints/background.ts",
+    "entrypoints/calendar.content.ts",
+    "env.d.ts",
+    "features/visit/RosterRow.tsx",
+    "features/visit/VisitPanel.tsx",
+    "features/visit/hooks.ts",
+    "lib/calendar-sync.ts",
+    "lib/calendar.ts",
+    "lib/config.ts",
+    "lib/messaging.ts",
+    "package.json"
+  ],
+  "sessions": [
+    {
+      "metadata": "/fc/20d3a1d4e1/0/metadata.json",
+      "transcript": "/fc/20d3a1d4e1/0/full.jsonl",
+      "content_hash": "/fc/20d3a1d4e1/0/content_hash.txt",
+      "prompt": "/fc/20d3a1d4e1/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 1398,
+    "cache_creation_tokens": 329277,
+    "cache_read_tokens": 16221807,
+    "output_tokens": 95610,
+    "api_call_count": 78
+  }
+}

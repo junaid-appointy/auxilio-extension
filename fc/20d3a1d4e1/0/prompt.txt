@@ -1,0 +1,21 @@
+yes do the high value fixes
+
+---
+
+now lets first plan on these and then we will implement one by one. The flow after cancellation from the extension. can we invite again, if yes, why are button disabled. 
+how can we make the nudge after the room, location addition faster and accurate?
+Need to improve notification section - like the one that pops up : up to date no changes - that need to be graceful and that should only pop when I open an event which is already linked to a invite, not after sending an invite. the other notification that shows n passes sent, that also needs to be temporary. all these will pop up and leave gracefully.
+I opened an old event there was no guests in it, but still the extension showed me one guest : j765894110@gmail.com
+first give me answer of all, then I will tell you which one to implement.
+
+---
+
+lets do 1,2,3 first, for 4 we will do a wipe on visitor/guest related data and test again later.
+
+---
+
+the phantom was shown in the normal guest roster (with toggles)
+
+---
+
+yes add that
