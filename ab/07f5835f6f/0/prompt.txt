@@ -1,0 +1,70 @@
+first create a plan then I will decide what to implement. 
+ can we make the auxilio-extension row that we add in google calendar event more dynamic and reasonable, like when an event is saved with a location we nudge them if they want to send passes or room is added in the calendar we nudge them if they want to send passes, if an event is already linked to a invite pass, we show something like : Manage visitors
+  Manage guests and send entry passes, and if its a new event with no linked invite passes we write something like Create Invite Passes , Subtitle : Send entry passes to visitors. You decide the suitable title and subtitle that makes sense to the user and make them want to use it. but keep them short. also we need to this reliably and fast.
+
+---
+
+okay, lets implement it.
+
+---
+
+well it is not accurate and updated, I clicked on the create passes button, sent passes, the text stayed as it was, even after page refresh, I openend the modal and it still showed create passes. there can more edge cases like these, scan for them and we will fix all of them.
+
+---
+
+can you scan and check the whole flow related to this visitor management section we have added in the calendar, suggest me if we have missed any flows and need changes in backend or in the extension. I am open for any improvement advices.
+
+---
+
+I accept all your recommendations, apart from recurring event one, we will implement all fixes and improvements. 
+What's solid (don't touch)
+
+- Canonical iCalUID convergence — add-on, extension, and .ics all hit the same draft/links row, so passes are idempotent and never duplicated across surfaces. This is the keystone and it's right.
+- Host-only gating is consistent across sync (organizer.self), panel (isGuest), and the row.
+- Cross-channel suppression via the status poll, and the engine's lifecycle logic itself (cancel-on-delete with guest notice, reschedule-reissue with active-only filtering) is genuinely well-built.
+
+Tier 1 — real gaps that can lose data or mislead (worth fixing)
+
+1. Orphan passes when the host's calendar isn't server-connected.
+The engine's delete/move handling (calendar-ingest.ts: cancel + email the guest, reschedule + reissue) runs only off the server-side OAuth watch/poll. The extension's connect-calendar exchange at sign-in is explicitly best-effort (auth.ts:153 — "never let a failure here break sign-in"). So a host who signed into the extension but whose calendar connect silently failed gets: deleting the meeting leaves a live pass (visitor still has a valid QR for a cancelled meeting), and moving it leaves stale pass times. Worse — the extension's local sync sees the cancellation (cancelledIds) but only uses it to purge the nudge; it never tells the engine to revoke the passes.
+
+2. The panel never surfaces calendarSync at all.
+The engine computes connected / canConnect / connectUrl / relevant and returns it in every draft response (routes.ts:765), but VisitPanel.tsx ignores it (confirmed: zero references). So the host has no "auto-sync is off" indicator and no reconnect CTA — they can't even tell they're in the broken state from #1.
+
+→ Recommendation: render a subtle affordance in the panel when calendarSync.relevant && !connected && canConnect ("Auto-sync off — Connect" → connectUrl). As defense-in-depth, when local sync sees a handled event cancelled, call a new engine cancel-all-for-event so passes are revoked even without server OAuth. (#2 is cheap and fixes the root awareness; the safety net is optional.)
+
+Tier 2 — flow ambiguities to decide (may not be bugs)
+
+3. Recurring events conflate into one draft. The draft is keyed on iCalUid, which Google shares across all occurrences of a series. So a weekly "client visit" = one shared roster and one validFrom/validUntil (whichever occurrence sent last). If visitors differ per occurrence, this is wrong; if they're the same recurring visitor, it's fine. Needs a product decision before it bites someone.
+
+4. No one-tap "cancel this event's passes." The panel can only cancel by toggling each guest off + Update. And (the edge I flagged last turn) cancelling all leaves the local handled mark, so the row stays "Manage visitors." A real cancel-event affordance + clearing handled when activeCount hits 0 would close this.
+
+Tier 3 — enhancements worth considering
+
+- 5. Email-only delivery. The engine already has a WhatsApp template sender (sendVisitorInvitePass); for guests with a phone, offering WhatsApp delivery is cheap reach with no new infra.
+- 6. No check-in feedback loop. The panel shows "passes issued" but never "arrived" — yet the reception display already logs check-ins. Surfacing "3 of 5 checked in" on the homescreen/panel is a strong "answer in 30 seconds" win and closes the loop.
+- 7. Known documented limits to keep on the radar: primary-calendar-only (secondary calendars get no nudge or lifecycle), and the status poll's 100-UID cap.
+
+My recommendation
+
+The highest-value next step is Tier 1 (#1 + #2 together) — it's the one place the system can silently leave a visitor holding a valid pass for a meeting that no longer exists, and the fix is small (surface state the engine already returns + an optional safety-net endpoint). Recurring events (#3) is the most important decision to make even if we don't build anything yet.
+
+---
+
+lets add optional whatsapp delivery, but why is that I have do it manually, does not all notification mechanism use same flow, that if we are sending whatsapp delivery to user on an invite from the dashboard, then why not we are sending on calendar created invite? first answer me this.
+
+---
+
+okay now build the extension for chrome upload
+
+---
+
+A justification for scripting is required. This can be entered on the Privacy practices tab.
+
+---
+
+no markdown tags, keep it short: The extension's core feature is a "Manage Visitors" control and visitor-pass UI that it injects into Google Calendar event pages (https://calendar.google.com/*). This UI is delivered by a content script declared in the manifest, which Chrome only auto-injects into Calendar pages opened after the extension is installed or updated.
+
+scripting is used solely to call chrome.scripting.executeScript on Google Calendar tabs that are already open at install/update time, injecting that same bundled content script so the feature works immediately without the user having to manually reload their Calendar tab. Without it, an existing Calendar tab shows no extension functionality until refreshed.
+
+It is used only on the https://calendar.google.com/* host the extension is already granted, injects only the extension's own bundled content-script file (no remote or arbitrary code), and runs only in response to the extension's install/update event. It is not used to read page content or inject scripts into any other site.
