@@ -6,7 +6,7 @@
  *     API that drives post-save refresh + the visitor-event nudge/badge.
  * Calendar.events.readonly only.
  */
-import { MAGIC_ADDRESS } from './config';
+import { DEBUG, MAGIC_ADDRESS } from './config';
 import type { ActiveEvent } from './types';
 
 /** Forward window for the change-feed scan. `singleEvents=true` expands EVERY
@@ -86,7 +86,10 @@ function domainOf(email: string): string {
  */
 export function isSuggested(ev: GCalEvent, myDomain: string): boolean {
   if (!myDomain || isMarked(ev)) return false;
-  const hasLocation = !!(ev.location ?? '').trim();
+  const loc = (ev.location ?? '').trim();
+  // A pasted video-call link (Meet / Zoom / Teams) is a VIRTUAL meeting, not a
+  // physical visit — a URL-only location must not trigger the "visitors coming?" hint.
+  const hasLocation = !!loc && !/^https?:\/\//i.test(loc);
   const hasRoom = (ev.attendees ?? []).some((a) => a.resource);
   if (!hasLocation && !hasRoom) return false;
   const me = myDomain.toLowerCase();
@@ -115,15 +118,25 @@ async function getEvent(
   );
   url.searchParams.set(
     'fields',
-    'iCalUID,summary,location,description,start,end,organizer,attendees(email,displayName,resource,self,organizer)',
+    // id/status/recurringEventId + organizer.self are needed by the targeted
+    // checkEventNow path (isMarked/isSuggested + the host gate + series collapsing);
+    // the rest feeds the side panel's ActiveEvent. One mask serves both callers.
+    'id,iCalUID,status,summary,location,description,recurringEventId,start,end,organizer(self,email),attendees(email,displayName,resource,self,organizer)',
   );
   return fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
 }
 
-export async function fetchActiveEvent(
+/**
+ * Resolve the canonical RAW event (GCalEvent) for an eid via events.get. Tries the
+ * decoded calendar/event id, then `primary` and the base series id, since recurring
+ * instance ids often 404. Throws 'NOT_SAVED' on a 404 (brand-new unsaved event) and a
+ * descriptive error otherwise. Shared by the side panel (fetchActiveEvent) and the
+ * targeted nudge check (calendar-sync checkEventNow).
+ */
+export async function resolveRawEvent(
   eid: string,
   accessToken: string,
-): Promise<ActiveEvent> {
+): Promise<GCalEvent> {
   const dec = decodeEid(eid);
   if (!dec) throw new Error('Could not read the event id from this page.');
 
@@ -137,7 +150,7 @@ export async function fetchActiveEvent(
     ...(baseId ? [{ cal: dec.calendarId, id: baseId }] : []),
     ...(baseId && dec.calendarId !== 'primary' ? [{ cal: 'primary', id: baseId }] : []),
   ];
-  console.log('[auxilio] resolve event', { eid, ...dec, candidates });
+  if (DEBUG) console.log('[auxilio] resolve event', { eid, ...dec, candidates });
 
   let res: Response | null = null;
   let lastStatus = 0;
@@ -163,11 +176,24 @@ export async function fetchActiveEvent(
     throw new Error(`Calendar API error (${lastStatus}). ${lastBody.slice(0, 120)}`);
   }
   const ev = (await res.json()) as GCalEvent;
-  console.log('[auxilio] resolved event', {
-    iCalUID: ev.iCalUID,
-    summary: ev.summary,
-    attendees: ev.attendees?.length ?? 0,
-  });
+  if (DEBUG) {
+    console.log('[auxilio] resolved event', {
+      iCalUID: ev.iCalUID,
+      summary: ev.summary,
+      attendees: ev.attendees?.length ?? 0,
+    });
+  }
+  return ev;
+}
+
+export async function fetchActiveEvent(
+  eid: string,
+  accessToken: string,
+): Promise<ActiveEvent> {
+  const ev = await resolveRawEvent(eid, accessToken);
+  // providerEventId is the id read off the page's eid (the panel echoes it to the
+  // engine), not ev.id — keep that contract. resolveRawEvent validated the eid.
+  const dec = decodeEid(eid);
 
   const attendees = (ev.attendees ?? [])
     .filter((a) => a.email && !a.resource && a.email.toLowerCase() !== MAGIC_ADDRESS)
@@ -180,7 +206,7 @@ export async function fetchActiveEvent(
 
   return {
     iCalUid: ev.iCalUID ?? '',
-    providerEventId: dec.eventId,
+    providerEventId: dec?.eventId,
     title: ev.summary,
     start: startOf(ev),
     end: ev.end?.dateTime ?? ev.end?.date,

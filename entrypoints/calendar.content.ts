@@ -202,15 +202,35 @@ export default defineContentScript({
     };
     syncNow();
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') syncNow();
+      if (document.visibilityState === 'visible') {
+        syncNow();
+        render(); // editorPoll skips while hidden — repaint at once on return
+      }
     });
     window.addEventListener('focus', syncNow);
     let wasEditor = /\/eventedit/.test(location.pathname);
+    // The eid of the event currently open in the editor — captured while editing so
+    // that on exit (a likely save) we can fire a TARGETED check of exactly that event.
+    let lastEditorEid: string | null = wasEditor ? urlEid() : null;
     const editorPoll = setInterval(() => {
       if (!extAlive()) return teardown(); // orphaned by an extension reload → stop
       if (!isCurrent()) return teardown(); // a newer injected instance took over → stop
+      // Backgrounded tab → do no DOM work: the user can't be editing, and the
+      // visibilitychange listener fires syncNow() + render() the moment it's visible
+      // again. This stops every open-but-hidden Calendar tab from running readSurface
+      // (and its layout reads) once a second forever.
+      if (document.hidden) return;
       const isEditor = /\/eventedit/.test(location.pathname);
-      if (wasEditor && !isEditor) syncBurst(); // left the editor → likely saved
+      if (isEditor) lastEditorEid = urlEid() ?? lastEditorEid;
+      if (wasEditor && !isEditor) {
+        syncBurst(); // left the editor → likely saved
+        // Targeted instant check of the event we were just editing: one events.get
+        // (consistent right away) so a freshly added room/location/guest nudges within
+        // a round-trip, instead of waiting out the events.list change-feed lag. A
+        // brand-new event has no eid in the editor URL → it falls back to syncBurst.
+        if (lastEditorEid) safeSend({ type: 'CHECK_EVENT_NOW', eid: lastEditorEid });
+        lastEditorEid = null;
+      }
       wasEditor = isEditor;
       // Safety net: re-assert the button. The MutationObserver is debounced, so a
       // continuous scroll (which fires mutations faster than the debounce) can
@@ -289,7 +309,18 @@ export default defineContentScript({
     }
 
     function snapshotOf(el: HTMLElement, eid: string): DomEventSnapshot {
-      const text = el.innerText || '';
+      // Read with textContent (NOT innerText) so taking a snapshot never forces a
+      // synchronous reflow. render() runs on the 1s poll plus every mutation debounce,
+      // and `document.body.innerText` (the editor / url-eid surface) was the single most
+      // expensive repeated op — innerText computes layout to decide what's "rendered".
+      // For the body surface, scope to the [role="main"] region so we read the event
+      // form, not the whole app shell (and skip head/inline scripts that textContent
+      // would otherwise pull in). ARIA-only, no class coupling; falls back to the body.
+      const scope =
+        el === document.body
+          ? document.querySelector<HTMLElement>('[role="main"]') ?? el
+          : el;
+      const text = scope.textContent || '';
       const lower = text.toLowerCase();
       const magicPresent = !!MAGIC_ADDRESS && lower.includes(MAGIC_ADDRESS);
       const guestEmails = extractEmails(text).filter(
@@ -868,19 +899,6 @@ function firstIconLedRow(list: HTMLElement): HTMLElement | null {
   return null;
 }
 
-/** Does this element stack its visible children vertically (a column of rows),
- *  rather than laying them out side by side? Geometry, not CSS classes. */
-function stacksVertically(el: HTMLElement): boolean {
-  const kids = [...el.children].filter((c): c is HTMLElement => c instanceof HTMLElement && isVisible(c));
-  if (kids.length < 2) return false;
-  for (let i = 1; i < kids.length; i++) {
-    const a = kids[i - 1].getBoundingClientRect();
-    const b = kids[i].getBoundingClientRect();
-    if (b.top >= a.bottom - 2) return true; // the next child starts below the previous
-  }
-  return false;
-}
-
 /** A native Calendar content row = a block whose first child is a decorative
  *  (aria-hidden) leading icon, followed by content. This is the one stable,
  *  class-free signal Google keeps across both the popover and the edit page. */
@@ -922,23 +940,6 @@ function rowsListFor(el: HTMLElement): { list: HTMLElement; row: HTMLElement } |
   return null;
 }
 
-/** The biggest vertically-stacking container inside `root` — the content column
- *  whose last child is the visual bottom of the surface. */
-function mainVerticalList(root: HTMLElement): HTMLElement | null {
-  let best: HTMLElement | null = null;
-  let bestArea = 0;
-  for (const el of root.querySelectorAll<HTMLElement>('*')) {
-    if (!isVisible(el) || !stacksVertically(el)) continue;
-    const r = el.getBoundingClientRect();
-    const area = r.width * r.height;
-    if (area > bestArea) {
-      bestArea = area;
-      best = el;
-    }
-  }
-  return best;
-}
-
 /** Left indent (px) that lines our button up with a native row's *text* column,
  *  past Google's leading icon gutter. Measured from where the row's first text
  *  actually paints, relative to the list we insert into. */
@@ -960,26 +961,6 @@ function firstTextLeft(el: HTMLElement): number {
     if (rect.width > 0) return rect.left;
   }
   return el.getBoundingClientRect().left;
-}
-
-/** The scrolling content region inside a surface (overflow-y auto/scroll),
- *  largest first — so our row lives with the content and scrolls, not in a
- *  pinned header/footer. Null when nothing scrolls. */
-function scrollContainer(root: HTMLElement): HTMLElement | null {
-  let best: HTMLElement | null = null;
-  let bestArea = 0;
-  for (const el of root.querySelectorAll<HTMLElement>('*')) {
-    if (!isVisible(el)) continue;
-    const oy = getComputedStyle(el).overflowY;
-    if (oy !== 'auto' && oy !== 'scroll') continue;
-    const r = el.getBoundingClientRect();
-    const area = r.width * r.height;
-    if (area > bestArea) {
-      bestArea = area;
-      best = el;
-    }
-  }
-  return best;
 }
 
 /** Stop our interactions dismissing Google's modal / triggering its buttons. */
@@ -1451,20 +1432,6 @@ function buildInlineButton(onClick: () => void, copy: RowCopy = DEFAULT_COPY): H
   btn.style.verticalAlign = 'middle';
   btn.style.alignSelf = 'center';
   return btn;
-}
-
-/** Stop interactions on the row's own padding (but not the button) from reaching
- *  Google — so an accidental tap beside the button can't close the dialog. */
-function shieldPadding(row: HTMLElement) {
-  const guard = (e: Event) => {
-    if (e.target === row) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-  };
-  for (const type of ['pointerdown', 'mousedown', 'touchstart', 'click'] as const) {
-    row.addEventListener(type, guard, true);
-  }
 }
 
 /** Floating fallback button (shadow-DOM, fully isolated). */

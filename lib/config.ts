@@ -20,3 +20,13 @@ export const MAGIC_ADDRESS = (
 
 /** All engine addon endpoints live under this prefix. */
 export const ADDON_API = `${ENGINE_BASE_URL}/api/visitor/calendar/addon`;
+
+/** Verbose diagnostic logging gate. On in dev; off in production unless forced with
+ *  WXT_DEBUG=1. The steady-state diagnostics (per-minute sync log, per-render roster
+ *  log, the per-event payload stringify) cost CPU and can pin objects (defeating GC)
+ *  in a long-lived Calendar tab, so production ships quiet. Errors/warnings are NOT
+ *  gated by this — only the chatty informational logs. */
+export const DEBUG =
+  import.meta.env.WXT_DEBUG === '1' ||
+  import.meta.env.WXT_DEBUG === 'true' ||
+  !!import.meta.env.DEV;

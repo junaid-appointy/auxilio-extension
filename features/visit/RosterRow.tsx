@@ -96,10 +96,13 @@ export function RosterRow({
   const display = guest.name || guest.email;
   // A sent guest toggled OFF is a pending cancel — re-sending will revoke their
   // pass (engine applyDraft cancels !include guests with an active pass), so we
-  // dim the row and don't offer edits. Everyone we'd still issue/update a pass
-  // for can be corrected, whether or not their pass already went out.
+  // dim the row and don't offer edits.
   const pendingCancel = sent && !guest.include;
-  const editable = guest.include && !cancelled;
+  // Everyone we'd still issue/update a pass for can have their details corrected —
+  // whether or not their pass already went out, and including a re-invite (a
+  // previously-cancelled guest toggled back on, which reads as a fresh pending
+  // invite rather than a dead row).
+  const editable = guest.include;
 
   // The drawer handle names exactly what's still missing, so the host knows what
   // tapping it is for. A real name is absent when the engine flagged the name as the
@@ -117,14 +120,19 @@ export function RosterRow({
           : 'Add phone';
 
   // Switch is no longer locked once a pass is sent: toggling off cancels on the
-  // next update (mirrors the add-on), toggling back on re-issues.
-  const switchLabel = sent
+  // next update (mirrors the add-on), toggling back on re-issues. A cancelled guest
+  // can be re-invited (a fresh pass is issued on the next send).
+  const switchLabel = cancelled
     ? guest.include
-      ? `Cancel the pass for ${guest.email}`
-      : `Re-issue a pass for ${guest.email}`
-    : guest.include
-      ? `Don’t invite ${guest.email}`
-      : `Invite ${guest.email}`;
+      ? `Don’t re-invite ${guest.email}`
+      : `Re-invite ${guest.email}`
+    : sent
+      ? guest.include
+        ? `Cancel the pass for ${guest.email}`
+        : `Re-issue a pass for ${guest.email}`
+      : guest.include
+        ? `Don’t invite ${guest.email}`
+        : `Invite ${guest.email}`;
 
   return (
     <div className={`guest${guest.include ? '' : ' guest--dim'}`}>
@@ -160,7 +168,9 @@ export function RosterRow({
               <Chip tone="success">{guest.checkedInside ? 'Inside now' : 'Checked in'}</Chip>
             )}
             {pendingCancel && <Chip tone="error">Will cancel</Chip>}
-            {cancelled && <Chip tone="error">Cancelled</Chip>}
+            {/* Re-inviting (cancelled but toggled back on) reads as a fresh pending
+                invite, so the "Cancelled" chip only shows while it stays off. */}
+            {cancelled && !guest.include && <Chip tone="error">Cancelled</Chip>}
           </div>
           <div className="type-label-sm text-muted row__ellipsis">{guest.email}</div>
         </div>
@@ -215,9 +225,12 @@ export function RosterRow({
           )}
         </div>
       ) : (
-        !guest.include &&
-        !cancelled && (
-          <div className="guest__hint type-label-sm">Will not receive a pass. Toggle on to invite.</div>
+        !guest.include && (
+          <div className="guest__hint type-label-sm">
+            {cancelled
+              ? 'Pass cancelled. Toggle on to re-invite.'
+              : 'Will not receive a pass. Toggle on to invite.'}
+          </div>
         )
       )}
     </div>

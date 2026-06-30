@@ -448,6 +448,18 @@ select.field__input { cursor: pointer; appearance: none; }
 .banner--error { background: var(--color-error-container); color: var(--color-on-error-container); }
 .banner--info { background: var(--color-primary-container); color: var(--color-on-primary-container); }
 
+/* ---------- Transient notice (self-dismissing inline message) ----------
+   Wrapper for messages that animate in, hold, then animate out before unmounting
+   (the "Up to date" / "passes sent" confirmations). The global prefers-reduced-motion
+   rule below collapses the transition, so it just appears/disappears for those users. */
+.transient {
+  opacity: 0;
+  transform: translateY(-6px);
+  transition: opacity var(--motion-base) var(--motion-easing),
+    transform var(--motion-base) var(--motion-easing);
+}
+.transient--show { opacity: 1; transform: none; }
+
 /* keyboard focus ring (focus-visible only — no ring on mouse) */
 :where(button, a, input, select, [tabindex]):focus-visible {
   outline: 2px solid var(--color-primary);

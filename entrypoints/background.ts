@@ -12,6 +12,7 @@ import {
 import { authStatus, getValidTokens, signIn, signOut, wasConnected } from '@/lib/auth';
 import { decodeEid, encodeEid, fetchActiveEvent } from '@/lib/calendar';
 import {
+  checkEventNow,
   clearSyncToken,
   eventState,
   isEventHandled,
@@ -510,6 +511,17 @@ async function handle(
       // banner appears fast instead of waiting up to a minute for the alarm.
       await doSync();
       return ok({ synced: true });
+
+    case 'CHECK_EVENT_NOW':
+      // Targeted instant check of the event the host just finished editing: one
+      // events.get (consistent immediately, unlike the laggy events.list change feed)
+      // folds it into the marked/suggested set, then we refresh the badge + in-page
+      // banner so a freshly added room/location/guest nudges within a round-trip.
+      return withTokens(async (t) => {
+        const changed = await checkEventNow(msg.eid, t.accessToken, domainOf(t.email));
+        if (changed) await refreshNudgeSurfaces();
+        return { checked: changed };
+      });
 
     case 'GET_PANEL_STATE':
       return ok({ open: panelConnected });

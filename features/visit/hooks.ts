@@ -128,20 +128,11 @@ export function useResolveGuestNames(draft: DraftResponse | undefined) {
   // Stable key so the effect fires only when the pending set actually changes.
   const key = pending.join('|');
 
-  // DIAGNOSTIC: what the panel loaded + who needs resolving. Reveals whether the
-  // resolver even runs (pending non-empty) and whether nameIsFallback is set.
-  console.log(
-    '[auxilio] resolve-names: roster',
-    (draft?.roster ?? []).map((g) => ({ email: g.email, name: g.name, fb: g.nameIsFallback })),
-    '| pending', pending,
-  );
-
   useEffect(() => {
     if (!iCalUid || pending.length === 0) return;
     let cancelled = false;
     rpc({ type: 'RESOLVE_GUESTS', emails: pending })
       .then((resolved) => {
-        console.log('[auxilio] resolve-names: RESOLVE_GUESTS returned', resolved);
         if (cancelled || !resolved || Object.keys(resolved).length === 0) return;
         // Names we upgraded from a fallback → persist them to the engine so the
         // materialized PASS + EMAIL use the real name, not the email-derived

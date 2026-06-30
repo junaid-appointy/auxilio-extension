@@ -122,6 +122,14 @@ export function VisitPanel() {
   useEffect(resetEditBaseline, [event?.iCalUid]);
   // Drop a half-armed cancel-all confirm when switching events.
   useEffect(() => setConfirmCancelAll(false), [event?.iCalUid]);
+  // Clear any prior send/preview result when the active event changes, so a "passes
+  // sent" confirmation (or the "up to date" suppression that keys off send.isSuccess)
+  // never leaks onto the next event the panel follows to.
+  useEffect(() => {
+    send.reset();
+    preview.reset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [event?.iCalUid]);
 
   // Guard 1: hold the current event while sending / previewing; catch up once idle.
   const busy = send.isPending || preview.isPending || !!previewData;
@@ -266,8 +274,12 @@ export function VisitPanel() {
   // What's actually pending. A new/uninvited guest still to get a pass, or a sent
   // guest toggled off (a pending revoke), is a STRUCTURAL change visible in the
   // roster (and reverts cleanly because it's recomputed here every render).
+  // A previously-CANCELLED guest the host toggles back on counts here too — it's a
+  // re-invite, and the engine issues a fresh pass for them on the next send. (Right
+  // after a cancel they come back toggled off, so this is empty until the host opts
+  // them back in — the button stays quiet until there's a real change.)
   const pendingNew = data.roster.filter(
-    (g) => g.include && g.status !== 'sent' && g.status !== 'cancelled',
+    (g) => g.include && g.status !== 'sent',
   );
   const pendingCancel = data.roster.filter((g) => g.status === 'sent' && !g.include);
 
@@ -468,8 +480,14 @@ export function VisitPanel() {
           )}
         </section>
 
-        {/* Send result */}
-        {send.isSuccess && <SendSummary result={send.data} />}
+        {/* Send result — a temporary confirmation that fades out on its own. Holds
+            indefinitely only when some passes failed, so the host can read what to fix. */}
+        <TransientNotice
+          show={send.isSuccess}
+          duration={send.data?.failed.length ? Infinity : 6000}
+        >
+          {send.data && <SendSummary result={send.data} />}
+        </TransientNotice>
         {send.isError && !isAuthError(send.error) && (
           <div className="banner banner--error" role="alert">
             <AlertCircle size={18} strokeWidth={2} style={{ flex: '0 0 auto' }} />
@@ -486,7 +504,10 @@ export function VisitPanel() {
           background: 'var(--color-surface-lowest)',
         }}
       >
-        <AutoHideBanner show={nothingToDo}>
+        {/* "Up to date" only greets you when you OPEN an already-linked event with
+            nothing pending — never right after a send (that's what the "passes sent"
+            confirmation above is for, so we suppress this while it's showing). */}
+        <TransientNotice show={nothingToDo && !send.isSuccess}>
           <div
             className="banner banner--info"
             role="status"
@@ -495,7 +516,7 @@ export function VisitPanel() {
             <CheckCircle2 size={18} strokeWidth={2} style={{ flex: '0 0 auto' }} />
             <span className="type-body">Up to date. No changes to send.</span>
           </div>
-        </AutoHideBanner>
+        </TransientNotice>
         {writeAuthError && (
           <div
             className="banner banner--error"
@@ -640,20 +661,45 @@ export function VisitPanel() {
 
 // ───────────────────────── sub-components ─────────────────────────
 
-/** Shows its children for ~5s each time `show` flips true, then auto-hides — an
- *  ephemeral notice rather than a banner that lingers. Re-shows if `show` cycles. */
-function AutoHideBanner({ show, children }: { show: boolean; children: React.ReactNode }) {
-  const [visible, setVisible] = useState(false);
+/** Mounts its children, animates them in, holds for `duration`, then animates them
+ *  out before unmounting — a transient, self-dismissing notice (no abrupt
+ *  appear/disappear). Re-shows whenever `show` cycles back to true. Pass
+ *  `duration={Infinity}` to hold until `show` goes false (used when a send has
+ *  partial failures the host must see). Reduced-motion users get an instant
+ *  show/hide via the global CSS rule. */
+function TransientNotice({
+  show,
+  duration = 5000,
+  children,
+}: {
+  show: boolean;
+  duration?: number;
+  children: React.ReactNode;
+}) {
+  const [mounted, setMounted] = useState(false);
+  const [shown, setShown] = useState(false);
   useEffect(() => {
     if (!show) {
-      setVisible(false);
+      setShown(false); // animate out; the effect below unmounts after the transition
       return;
     }
-    setVisible(true);
-    const t = setTimeout(() => setVisible(false), 5000);
+    setMounted(true);
+    const raf = requestAnimationFrame(() => setShown(true)); // next frame → transition in
+    const hide =
+      duration === Infinity ? undefined : setTimeout(() => setShown(false), duration);
+    return () => {
+      cancelAnimationFrame(raf);
+      if (hide) clearTimeout(hide);
+    };
+  }, [show, duration]);
+  // Unmount only after the out-transition has run, so it fades rather than vanishes.
+  useEffect(() => {
+    if (shown || !mounted) return;
+    const t = setTimeout(() => setMounted(false), 240); // ~ --motion-base + slack
     return () => clearTimeout(t);
-  }, [show]);
-  return visible ? <>{children}</> : null;
+  }, [shown, mounted]);
+  if (!mounted) return null;
+  return <div className={`transient${shown ? ' transient--show' : ''}`}>{children}</div>;
 }
 
 function Shell({ children, onBack }: { children: React.ReactNode; onBack?: () => void }) {

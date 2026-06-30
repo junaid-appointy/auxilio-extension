@@ -8,8 +8,8 @@
  * No DOM. Reflects SAVED state only (pre-save edits are add-on-only — see
  * Planning-docs/2026-06-19_calendar_addon_vs_extension_capabilities.md).
  */
-import { MAGIC_ADDRESS } from './config';
-import { encodeEid, isMarked, isSuggested, listEvents } from './calendar';
+import { DEBUG, MAGIC_ADDRESS } from './config';
+import { encodeEid, isMarked, isSuggested, listEvents, resolveRawEvent } from './calendar';
 import type { EventState, PanelVisitorEvent, VisitorEventSummary } from './types';
 
 const SYNC_TOKEN_KEY = 'auxilio.syncToken';
@@ -259,12 +259,13 @@ async function doRunSync(accessToken: string, selfDomain = ''): Promise<SyncResu
     changedIds.add(ev.id);
     const cancelled = ev.status === 'cancelled';
     const hasMagic = isMarked(ev);
-    // DIAGNOSTIC: the magic address is somewhere in this event's payload, yet
-    // isMarked() didn't flag it — i.e. it's not a structured attendee email and
-    // not in `location` (e.g. it's only in the description, or events.list
-    // returned a trimmed attendee list). This is the signature of a primary-
-    // calendar miss; the warning shows exactly what we got back.
-    if (!hasMagic && MAGIC_ADDRESS && JSON.stringify(ev).toLowerCase().includes(MAGIC_ADDRESS)) {
+    // DIAGNOSTIC (debug-only): the magic address is somewhere in this event's
+    // payload, yet isMarked() didn't flag it — i.e. it's not a structured attendee
+    // email and not in `location` (e.g. only in the description, or events.list
+    // returned a trimmed attendee list). The signature of a primary-calendar miss.
+    // Gated behind DEBUG so we don't JSON.stringify EVERY non-marked event on every
+    // sync (the 12h full re-scan walks the whole 90-day window) in production.
+    if (DEBUG && !hasMagic && MAGIC_ADDRESS && JSON.stringify(ev).toLowerCase().includes(MAGIC_ADDRESS)) {
       console.warn(
         '[auxilio] sync MISS: magic address in payload but isMarked() is false',
         { id: ev.id, summary: ev.summary, location: ev.location, attendees: ev.attendees, status: ev.status },
@@ -352,15 +353,19 @@ async function doRunSync(accessToken: string, selfDomain = ''): Promise<SyncResu
     if (handled[id] < handledCutoff) delete handled[id];
   }
 
-  // DIAGNOSTIC: one line per sync so a primary-calendar miss is obvious — did the
-  // list even return the event (itemsReturned), and did anything end up marked?
-  console.log('[auxilio] sync done', {
-    mode: fullSync ? 'full' : 'incremental',
-    magicAddress: MAGIC_ADDRESS,
-    itemsReturned: resp.items.length,
-    markedTotal: Object.keys(marked).length,
-    newMarked: newMarked.length,
-  });
+  // DIAGNOSTIC (debug-only): one line per sync so a primary-calendar miss is obvious —
+  // did the list even return the event (itemsReturned), and did anything end up marked?
+  // Gated behind DEBUG: this fires every minute (the alarm cadence) for the life of the
+  // browser, so in production it's pure log churn that can pin objects.
+  if (DEBUG) {
+    console.log('[auxilio] sync done', {
+      mode: fullSync ? 'full' : 'incremental',
+      magicAddress: MAGIC_ADDRESS,
+      itemsReturned: resp.items.length,
+      markedTotal: Object.keys(marked).length,
+      newMarked: newMarked.length,
+    });
+  }
 
   await chrome.storage.local.set({
     [SYNC_TOKEN_KEY]: resp.nextSyncToken ?? syncToken,
@@ -474,4 +479,63 @@ export async function listForPanel(): Promise<PanelVisitorEvent[]> {
 export async function isEventMarked(eventId: string): Promise<boolean> {
   const marked = await readMarked();
   return !!marked[eventId];
+}
+
+/**
+ * Targeted, low-latency check of ONE event right after the host likely saved it (they
+ * left the editor). Does a single events.get — which is consistent immediately, unlike
+ * events.list (the change feed lags a few seconds behind a save) — and folds the event
+ * into the marked OR suggested set, or removes it. This lets a freshly added room /
+ * location / external guest surface the firm or soft nudge within one round-trip
+ * instead of waiting on the next list sync. Best-effort: a 404 (a brand-new event not
+ * yet consistent) or any error is swallowed, and the regular sync reconciles later.
+ * `selfDomain` (the host's email domain) gates the soft suggestion (internal vs
+ * external guest). Returns true if it changed either set (so the caller can refresh
+ * the badge/banner), false otherwise.
+ */
+export async function checkEventNow(
+  eid: string,
+  accessToken: string,
+  selfDomain = '',
+): Promise<boolean> {
+  let ev;
+  try {
+    ev = await resolveRawEvent(eid, accessToken);
+  } catch {
+    return false; // NOT_SAVED / transient — the list sync will catch it
+  }
+  if (!ev.id) return false;
+
+  const store = await chrome.storage.local.get([MARKED_KEY, SUGGESTED_KEY]);
+  const marked = (store[MARKED_KEY] as MarkedMap) ?? {};
+  const suggested = (store[SUGGESTED_KEY] as MarkedMap) ?? {};
+  const before = JSON.stringify([marked[ev.id] ?? null, suggested[ev.id] ?? null]);
+
+  const isHost = ev.organizer?.self === true;
+  const cancelled = ev.status === 'cancelled';
+  const summary: VisitorEventSummary = {
+    eid: encodeEid(ev.id, 'primary'),
+    eventId: ev.id,
+    iCalUid: ev.iCalUID ?? '',
+    title: ev.summary || '(no title)',
+    start: ev.start?.dateTime ?? ev.start?.date,
+    seriesId: ev.recurringEventId || ev.id,
+  };
+
+  if (isHost && !cancelled && isMarked(ev)) {
+    marked[ev.id] = summary;
+    delete suggested[ev.id];
+  } else if (isHost && !cancelled && isSuggested(ev, selfDomain)) {
+    suggested[ev.id] = summary;
+    delete marked[ev.id];
+  } else {
+    // Not (or no longer) a tracked/suggested visitor event the host owns.
+    delete marked[ev.id];
+    delete suggested[ev.id];
+  }
+
+  const after = JSON.stringify([marked[ev.id] ?? null, suggested[ev.id] ?? null]);
+  if (after === before) return false; // nothing changed → skip the write + refresh
+  await chrome.storage.local.set({ [MARKED_KEY]: marked, [SUGGESTED_KEY]: suggested });
+  return true;
 }
