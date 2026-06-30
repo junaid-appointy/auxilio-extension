@@ -3,8 +3,9 @@
   "checkpoint_id": "ab07f5835f6f",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 9,
+  "checkpoints_count": 10,
   "files_touched": [
+    "CHROMEWEBSTORE.md",
     "entrypoints/background.ts",
     "entrypoints/calendar.content.ts",
     "features/visit/RosterRow.tsx",
@@ -24,13 +25,19 @@
       "transcript": "/ab/07f5835f6f/0/full.jsonl",
       "content_hash": "/ab/07f5835f6f/0/content_hash.txt",
       "prompt": "/ab/07f5835f6f/0/prompt.txt"
+    },
+    {
+      "metadata": "/ab/07f5835f6f/1/metadata.json",
+      "transcript": "/ab/07f5835f6f/1/full.jsonl",
+      "content_hash": "/ab/07f5835f6f/1/content_hash.txt",
+      "prompt": "/ab/07f5835f6f/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 16461,
-    "cache_creation_tokens": 692728,
-    "cache_read_tokens": 64298115,
-    "output_tokens": 238041,
-    "api_call_count": 254
+    "input_tokens": 35729,
+    "cache_creation_tokens": 818980,
+    "cache_read_tokens": 64951203,
+    "output_tokens": 252474,
+    "api_call_count": 263
   }
 }
