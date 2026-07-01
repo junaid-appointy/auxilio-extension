@@ -351,7 +351,7 @@ export function VisitPanel() {
   const writeAuthError = isAuthError(patch.error) || isAuthError(send.error);
 
   return (
-    <Shell onBack={back}>
+    <Shell onBack={back} scrollLock={!!previewData}>
       <div className="enter" style={{ padding: 'var(--space-lg)', display: 'grid', gap: 'var(--space-lg)' }}>
         {/* Event summary */}
         <Card style={{ display: 'grid', gap: 'var(--space-sm)' }}>
@@ -702,7 +702,7 @@ function TransientNotice({
   return <div className={`transient${shown ? ' transient--show' : ''}`}>{children}</div>;
 }
 
-function Shell({ children, onBack }: { children: React.ReactNode; onBack?: () => void }) {
+function Shell({ children, onBack, scrollLock }: { children: React.ReactNode; onBack?: () => void; scrollLock?: boolean }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minWidth: 320 }}>
       <header
@@ -726,7 +726,7 @@ function Shell({ children, onBack }: { children: React.ReactNode; onBack?: () =>
         <span style={{ flex: 1 }} />
         <AccountMenu />
       </header>
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflowY: scrollLock ? 'hidden' : 'auto' }}>
         {children}
       </div>
     </div>

@@ -204,6 +204,26 @@ export async function fetchActiveEvent(
     .map((a) => a.displayName || a.email || '')
     .filter(Boolean);
 
+  // DIAGNOSTIC (debug-only): the EXACT attendee list Google's API returns for this
+  // event, plus the subset we forward to the engine draft. Pins a phantom guest's
+  // source: if it shows under "raw from Google" it's a live API attendee (filter it);
+  // if it's absent here yet still appears in the panel roster, it's a stale engine
+  // draft (a data wipe is the fix). The flags expose pseudo-addresses (resource /
+  // self / organizer / responseStatus).
+  if (DEBUG) {
+    console.log(
+      '[auxilio] event attendees — raw from Google:',
+      (ev.attendees ?? []).map((a) => ({
+        email: a.email,
+        resource: a.resource,
+        self: a.self,
+        organizer: a.organizer,
+      })),
+      '| forwarded to engine:',
+      attendees.map((a) => a.email),
+    );
+  }
+
   return {
     iCalUid: ev.iCalUID ?? '',
     providerEventId: dec?.eventId,

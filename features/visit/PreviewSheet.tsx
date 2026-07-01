@@ -57,8 +57,15 @@ export function PreviewSheet({
     const doc = iframeRef.current?.contentDocument;
     if (doc) {
       const root = doc.documentElement;
-      setContentWidth(Math.max(EMAIL_WIDTH, root.scrollWidth));
-      setContentHeight(root.scrollHeight);
+      // Kill the iframe's own scrollbar — all scrolling is handled by the
+      // outer wrapper.  We must read dimensions *before* forcing overflow
+      // hidden, otherwise scrollHeight collapses.
+      const w = Math.max(EMAIL_WIDTH, root.scrollWidth);
+      const h = root.scrollHeight;
+      root.style.overflow = 'hidden';
+      if (doc.body) doc.body.style.overflow = 'hidden';
+      setContentWidth(w);
+      setContentHeight(h);
     }
     if (scrollRef.current) setViewportWidth(scrollRef.current.clientWidth);
   }, []);
