@@ -77,21 +77,21 @@ function domainOf(email: string): string {
 /**
  * Soft, low-noise SUGGESTION heuristic: this looks like an event that *will* host
  * visitors even though the host hasn't added the magic address yet. True when the
- * event has a physical location OR a booked room/resource AND at least one EXTERNAL
- * guest (someone outside the host's own email domain). Deliberately NOT a magic
- * event (those are the firm `isMarked` set) — this only drives the gentle in-page
- * "Visitors coming?" nudge, never a badge or OS notification. `myDomain` is the
- * signed-in user's email domain; without it we can't tell internal from external,
- * so we suggest nothing.
+ * event has a physical LOCATION AND at least one EXTERNAL guest (someone outside the
+ * host's own email domain). Deliberately NOT a magic event (those are the firm
+ * `isMarked` set) — this only drives the gentle in-page "Visitors coming?" nudge,
+ * never a badge or OS notification. `myDomain` is the signed-in user's email domain;
+ * without it we can't tell internal from external, so we suggest nothing.
+ *
+ * A booked room/resource does NOT qualify on its own (decision: no room-driven nudge)
+ * — only a real physical location does.
  */
 export function isSuggested(ev: GCalEvent, myDomain: string): boolean {
   if (!myDomain || isMarked(ev)) return false;
   const loc = (ev.location ?? '').trim();
-  // A pasted video-call link (Meet / Zoom / Teams) is a VIRTUAL meeting, not a
-  // physical visit — a URL-only location must not trigger the "visitors coming?" hint.
-  const hasLocation = !!loc && !/^https?:\/\//i.test(loc);
-  const hasRoom = (ev.attendees ?? []).some((a) => a.resource);
-  if (!hasLocation && !hasRoom) return false;
+  // Needs a physical location. A pasted video-call link (Meet / Zoom / Teams) is a
+  // VIRTUAL meeting, not a physical visit, so a URL-only location never qualifies.
+  if (!loc || /^https?:\/\//i.test(loc)) return false;
   const me = myDomain.toLowerCase();
   return (ev.attendees ?? []).some((a) => {
     if (a.resource || !a.email) return false;
@@ -204,15 +204,19 @@ export async function fetchActiveEvent(
     .map((a) => a.displayName || a.email || '')
     .filter(Boolean);
 
-  // DIAGNOSTIC (debug-only): the EXACT attendee list Google's API returns for this
-  // event, plus the subset we forward to the engine draft. Pins a phantom guest's
-  // source: if it shows under "raw from Google" it's a live API attendee (filter it);
-  // if it's absent here yet still appears in the panel roster, it's a stale engine
-  // draft (a data wipe is the fix). The flags expose pseudo-addresses (resource /
-  // self / organizer / responseStatus).
+  // DIAGNOSTIC (debug-only): the EXACT attendee list Google returns for THIS occurrence,
+  // the subset forwarded to the engine draft, and the iCalUID / instance id / series id.
+  // Confirmed 2026-06-30 that a phantom roster guest comes from a stale ENGINE draft (the
+  // API returns []), not from here — kept behind DEBUG for future phantom/recurring triage.
   if (DEBUG) {
     console.log(
-      '[auxilio] event attendees — raw from Google:',
+      '[auxilio][diag] resolve',
+      {
+        iCalUID: ev.iCalUID,
+        providerEventId: dec?.eventId,
+        recurringEventId: ev.recurringEventId,
+      },
+      '| attendees raw from Google:',
       (ev.attendees ?? []).map((a) => ({
         email: a.email,
         resource: a.resource,

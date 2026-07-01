@@ -89,6 +89,10 @@ export default defineContentScript({
     let eventDialog: HTMLElement | null = null;
     let followedEid: string | null = null; // last event auto-pushed to the panel
     let pendingMagic: { eid: string; eventId: string; title: string } | null = null;
+    // The open SAVED event's eid, so closing ANY event surface can fire a targeted
+    // check (the fast path for SUGGESTED/location events, which have no magic-address
+    // optimistic path). Set while a surface is open; consumed + cleared on close.
+    let lastSurfaceEid: string | null = null;
     let everSawEventId = false;
     // Set by readSurface when a non-event modal is open (a confirmation): we keep the
     // injected button in the form behind it, but must not float the FAB over the modal.
@@ -209,9 +213,6 @@ export default defineContentScript({
     });
     window.addEventListener('focus', syncNow);
     let wasEditor = /\/eventedit/.test(location.pathname);
-    // The eid of the event currently open in the editor — captured while editing so
-    // that on exit (a likely save) we can fire a TARGETED check of exactly that event.
-    let lastEditorEid: string | null = wasEditor ? urlEid() : null;
     const editorPoll = setInterval(() => {
       if (!extAlive()) return teardown(); // orphaned by an extension reload → stop
       if (!isCurrent()) return teardown(); // a newer injected instance took over → stop
@@ -221,16 +222,9 @@ export default defineContentScript({
       // (and its layout reads) once a second forever.
       if (document.hidden) return;
       const isEditor = /\/eventedit/.test(location.pathname);
-      if (isEditor) lastEditorEid = urlEid() ?? lastEditorEid;
-      if (wasEditor && !isEditor) {
-        syncBurst(); // left the editor → likely saved
-        // Targeted instant check of the event we were just editing: one events.get
-        // (consistent right away) so a freshly added room/location/guest nudges within
-        // a round-trip, instead of waiting out the events.list change-feed lag. A
-        // brand-new event has no eid in the editor URL → it falls back to syncBurst.
-        if (lastEditorEid) safeSend({ type: 'CHECK_EVENT_NOW', eid: lastEditorEid });
-        lastEditorEid = null;
-      }
+      if (wasEditor && !isEditor) syncBurst(); // left the editor → likely saved
+      // (The targeted CHECK_EVENT_NOW now fires from render() on surface-close — which
+      // also covers leaving the editor, since the editor is a surface that closes.)
       wasEditor = isEditor;
       // Safety net: re-assert the button. The MutationObserver is debounced, so a
       // continuous scroll (which fires mutations faster than the debounce) can
@@ -390,6 +384,19 @@ export default defineContentScript({
           });
         }
         syncBurst(); // confirm/refresh from the API right after (named nudge)
+      }
+
+      // Fast path for SUGGESTED (location) events — which have NO magic-address
+      // optimistic path. Remember the open saved event; when ANY event surface closes
+      // (detail popover, quick-create, or full editor), fire ONE targeted events.get
+      // (consistent immediately, unlike the laggy events.list change feed) so a freshly
+      // added location nudges within a round-trip. Fires once per open→close cycle;
+      // checkEventNow is idempotent and re-checks on reopen. This also covers magic
+      // events (more authoritative than the optimistic DOM guess above).
+      if (surface) lastSurfaceEid = surface.eid || null;
+      else if (lastSurfaceEid) {
+        safeSend({ type: 'CHECK_EVENT_NOW', eid: lastSurfaceEid });
+        lastSurfaceEid = null;
       }
 
       // Show the button on any open event surface — including while the panel is
