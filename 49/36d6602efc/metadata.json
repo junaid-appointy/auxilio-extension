@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.7.6",
+  "checkpoint_id": "4936d6602efc",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 7,
+  "files_touched": [
+    "entrypoints/calendar.content.ts",
+    "lib/calendar.ts",
+    "package.json"
+  ],
+  "sessions": [
+    {
+      "metadata": "/49/36d6602efc/0/metadata.json",
+      "transcript": "/49/36d6602efc/0/full.jsonl",
+      "content_hash": "/49/36d6602efc/0/content_hash.txt",
+      "prompt": "/49/36d6602efc/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 26344,
+    "cache_creation_tokens": 876397,
+    "cache_read_tokens": 44484817,
+    "output_tokens": 219566,
+    "api_call_count": 163
+  }
+}

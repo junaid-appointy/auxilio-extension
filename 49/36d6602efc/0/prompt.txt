@@ -1,0 +1,61 @@
+yes do the high value fixes
+
+---
+
+now lets first plan on these and then we will implement one by one. The flow after cancellation from the extension. can we invite again, if yes, why are button disabled. 
+how can we make the nudge after the room, location addition faster and accurate?
+Need to improve notification section - like the one that pops up : up to date no changes - that need to be graceful and that should only pop when I open an event which is already linked to a invite, not after sending an invite. the other notification that shows n passes sent, that also needs to be temporary. all these will pop up and leave gracefully.
+I opened an old event there was no guests in it, but still the extension showed me one guest : j765894110@gmail.com
+first give me answer of all, then I will tell you which one to implement.
+
+---
+
+lets do 1,2,3 first, for 4 we will do a wipe on visitor/guest related data and test again later.
+
+---
+
+the phantom was shown in the normal guest roster (with toggles)
+
+---
+
+yes add that
+
+---
+
+I do not see that log, also is the faster suggested nudge implemented?
+
+---
+
+I do not see that log, but I opened the event with phantom email guest. or is it becuase maybe once I added a guest to one of the event and since this is a recurring event, our system is getting confused?
+
+---
+
+I do not see that log, but I opened the event with phantom email guest. or is it becuase maybe once I added a guest to one of the event and since this is a recurring event, our system is getting confused? [auxilio] background ready
+background.js:1 [auxilio] engine → POST https://unyearning-olympia-unclimactic.ngrok-free.dev/api/visitor/calendar/addon/draft
+background.js:1 [auxilio] engine ← 200 751ms {"iCalUid":"6m67hv8lmrn0gq1jqk9vjredeg@google.com","tenantId":"appointy","providerEventId":"6m67hv8lmrn0gq1jqk9vjredeg_20260701T053000Z","title":"[F] Focus work","hostEmail":"junaid@appointy.com","ros
+background.js:1 [auxilio] engine → POST https://unyearning-olympia-unclimactic.ngrok-free.dev/api/visitor/calendar/addon/draft
+background.js:1 [auxilio] engine ← 200 383ms {"iCalUid":"5unlqfkutn42rbmlh7mogkefu7_R20260408T093000@google.com","tenantId":"appointy","providerEventId":"5unlqfkutn42rbmlh7mogkefu7_20260703T093000Z","title":"[F] Focus Work","hostEmail":"junaid@a
+
+---
+
+[auxilio] background ready
+background.js:1 [auxilio][diag] resolve {iCalUID: '5unlqfkutn42rbmlh7mogkefu7_R20260408T093000@google.com', providerEventId: '5unlqfkutn42rbmlh7mogkefu7_20260701T093000Z', recurringEventId: '5unlqfkutn42rbmlh7mogkefu7_R20260408T093000'} | attendees raw from Google: [] | forwarded to engine: []
+background.js:1 [auxilio] engine → POST https://unyearning-olympia-unclimactic.ngrok-free.dev/api/visitor/calendar/addon/draft
+background.js:1 [auxilio] engine ← 200 526ms {"iCalUid":"5unlqfkutn42rbmlh7mogkefu7_R20260408T093000@google.com","tenantId":"appointy","providerEventId":"5unlqfkutn42rbmlh7mogkefu7_20260701T093000Z","title":"[F] Focus Work","hostEmail":"junaid@a
+
+---
+
+do both, wipe visitor related data only.
+
+---
+
+few fixes in the auxilio extension. the fast nudge is still not working for location only flow. also we will not do fast nudge for rooms. in the whole visitor management now we will not mention seperate action like rescheduled or updated in email or any other notification, for every type of change we will say update or updated, first tell me which places you will change, then I will confirm if to implement it.
+
+---
+
+would an event which had location but not sent passes, would not come in this section in extension? Visitor events needing passes
+No events need passes right now. Open a Calendar event and click Register a visitor to send passes. is this intentional?
+
+---
+
+let them as it is. now build the extension for chrome upload

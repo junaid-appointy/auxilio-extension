@@ -1,0 +1,40 @@
+{
+  "cli_version": "0.7.6",
+  "checkpoint_id": "4936d6602efc",
+  "session_id": "d87941cb-71d8-4013-87e3-e38fe9b27018",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-01T02:15:49.734641Z",
+  "branch": "main",
+  "checkpoints_count": 7,
+  "save_step_count": 1,
+  "files_touched": [
+    "entrypoints/calendar.content.ts",
+    "lib/calendar.ts",
+    "package.json"
+  ],
+  "agent": "Claude Code",
+  "model": "",
+  "turn_id": "bc7f32f71f20",
+  "token_usage": {
+    "input_tokens": 26344,
+    "cache_creation_tokens": 876397,
+    "cache_read_tokens": 44484817,
+    "output_tokens": 219566,
+    "api_call_count": 163
+  },
+  "session_metrics": {
+    "turn_count": 14
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-01T02:15:49.685458Z",
+    "agent_lines": 43,
+    "agent_removed": 32,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 43,
+    "total_lines_changed": 75,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}
